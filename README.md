@@ -43,19 +43,6 @@ The goal is simple: give machinima creators the same kind of workflow Saturn 64 
 
 ---
 
-## Building
-
-Builds are done through **GitHub Actions** and are triggered **manually**:
-
-1. Go to the **Actions** tab of this repository.
-2. Select the build workflow.
-3. Click **Run workflow**.
-4. Download the build from the run's artifacts when it finishes.
-
-The workflow will be added as part of the foundation step. Local build instructions will follow the ones used by Ship of Harkinian, since OcarinaStudio is built on its codebase.
-
----
-
 ## Requirements
 
 OcarinaStudio does **not** include any Nintendo game data. You need to provide your own legally obtained copy of the Ocarina of Time ROM, exactly as Ship of Harkinian requires.
