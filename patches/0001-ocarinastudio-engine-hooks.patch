@@ -1,0 +1,170 @@
+diff --git a/soh/CMakeLists.txt b/soh/CMakeLists.txt
+index f356d214..5c577e69 100644
+--- a/soh/CMakeLists.txt
++++ b/soh/CMakeLists.txt
+@@ -774,6 +774,10 @@ else()
+     target_link_libraries(${PROJECT_NAME} PRIVATE "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
+ endif()
+ 
++# OcarinaStudio: custom eye textures are decoded with stb_image. libultraship links the stb target
++# privately, so its include directory has to be added here.
++target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_BINARY_DIR}/_deps/stb")
++
+ if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch")
+ 
+ nx_generate_nacp(Ship.nacp
+diff --git a/soh/soh/SohGui/SohGui.cpp b/soh/soh/SohGui/SohGui.cpp
+index 986f9337..ca88d016 100644
+--- a/soh/soh/SohGui/SohGui.cpp
++++ b/soh/soh/SohGui/SohGui.cpp
+@@ -35,6 +35,7 @@
+ #include "soh/Enhancements/debugger/SohStatsWindow.h"
+ #include "soh/Enhancements/debugger/valueViewer.h"
+ #include "soh/Enhancements/gameplaystatswindow.h"
++#include "soh/OcarinaStudio/OcarinaStudioWindow.h"
+ #include "soh/Enhancements/randomizer/randomizer_check_tracker.h"
+ #include "soh/Enhancements/randomizer/randomizer_entrance_tracker.h"
+ #include "soh/Enhancements/randomizer/randomizer_hint_tracker.h"
+@@ -96,6 +97,7 @@ std::shared_ptr<DLViewerWindow> mDLViewerWindow;
+ std::shared_ptr<ValueViewerWindow> mValueViewerWindow;
+ std::shared_ptr<MessageViewer> mMessageViewerWindow;
+ std::shared_ptr<GameplayStatsWindow> mGameplayStatsWindow;
++std::shared_ptr<OcarinaStudioWindow> mOcarinaStudioWindow;
+ std::shared_ptr<CheckTracker::CheckTrackerSettingsWindow> mCheckTrackerSettingsWindow;
+ std::shared_ptr<CheckTracker::CheckTrackerWindow> mCheckTrackerWindow;
+ std::shared_ptr<EntranceTracker::EntranceTrackerSettingsWindow> mEntranceTrackerSettingsWindow;
+@@ -229,7 +231,14 @@ void SetupGuiElements() {
+     mGameplayStatsWindow =
+         std::make_shared<GameplayStatsWindow>(CVAR_WINDOW("GameplayStats"), "Gameplay Stats", ImVec2(480, 550));
+     gui->AddGuiWindow(mGameplayStatsWindow);
+-    mCheckTrackerWindow = std::make_shared<CheckTracker::CheckTrackerWindow>(CVAR_WINDOW("CheckTracker"),
++    mOcarinaStudioWindow =
++        std::make_shared<OcarinaStudioWindow>(CVAR_WINDOW("OcarinaStudio"), "Ocarina Studio", ImVec2(460, 640));
++    gui->AddGuiWindow(mOcarinaStudioWindow);
++    if (CVarGetInteger(CVAR_WINDOW("OcarinaStudio"), -1) == -1) {
++        // First launch: show the studio panel by default.
++        mOcarinaStudioWindow->Show();
++    }
++    mCheckTrackerWindow =std::make_shared<CheckTracker::CheckTrackerWindow>(CVAR_WINDOW("CheckTracker"),
+                                                                              "Check Tracker", ImVec2(400, 540));
+     gui->AddGuiWindow(mCheckTrackerWindow);
+     mCheckTrackerSettingsWindow = std::make_shared<CheckTracker::CheckTrackerSettingsWindow>(
+diff --git a/soh/src/code/z_camera.c b/soh/src/code/z_camera.c
+index 3343be05..9ec364c3 100644
+--- a/soh/src/code/z_camera.c
++++ b/soh/src/code/z_camera.c
+@@ -10,6 +10,7 @@
+ #include "soh/Enhancements/controls/Mouse.h"
+ #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
+ #include "soh/Enhancements/savestate_serialize.h"
++#include "soh/OcarinaStudio/OcarinaStudio.h"
+ 
+ s16 Camera_ChangeSettingFlags(Camera* camera, s16 setting, s16 flags);
+ s32 Camera_RequestModeImpl(Camera* camera, s16 requestedMode, u8 forceModeChange);
+@@ -7725,6 +7726,9 @@ Vec3s Camera_Update(Camera* camera) {
+     } else {
+         View_SetScale(&camera->play->view, 1.0f);
+     }
++    if (camera == GET_ACTIVE_CAM(camera->play)) {
++        OcarinaStudio_OverrideView(camera->play, &viewEye.x, &viewAt.x, &viewUp.x, &viewFov);
++    }
+     camera->play->view.fovy = viewFov;
+     func_800AA358(&camera->play->view, &viewEye, &viewAt, &viewUp);
+     camera->camDir.x = eyeAtAngle.pitch;
+diff --git a/soh/src/code/z_play.c b/soh/src/code/z_play.c
+index 729edd0e..21406c07 100644
+--- a/soh/src/code/z_play.c
++++ b/soh/src/code/z_play.c
+@@ -13,6 +13,7 @@
+ #include "soh/ResourceManagerHelpers.h"
+ #include "soh/SaveManager.h"
+ #include "soh/framebuffer_effects.h"
++#include "soh/OcarinaStudio/OcarinaStudio.h"
+ 
+ #include <time.h>
+ #include <assert.h>
+@@ -1289,11 +1290,13 @@ void Play_DrawOverlayElements(PlayState* play) {
+         KaleidoScopeCall_Draw(play);
+     }
+ 
+-    if (gSaveContext.gameMode == GAMEMODE_NORMAL) {
++    if (gSaveContext.gameMode == GAMEMODE_NORMAL && !OcarinaStudio_HideHud()) {
+         Interface_Draw(play);
+     }
+ 
+-    Message_Draw(play);
++    if (!OcarinaStudio_HideMessages()) {
++        Message_Draw(play);
++    }
+ 
+     if (play->gameOverCtx.state != GAMEOVER_INACTIVE) {
+         GameOver_FadeInLights(play);
+@@ -1346,7 +1349,11 @@ void Play_Draw(PlayState* play) {
+     gSPSegment(POLY_XLU_DISP++, 0x02, play->sceneSegment);
+     gSPSegment(OVERLAY_DISP++, 0x02, play->sceneSegment);
+ 
+-    Gfx_SetupFrame(gfxCtx, 0, 0, 0);
++    {
++        u8 osClearR, osClearG, osClearB;
++        OcarinaStudio_GetClearColor(&osClearR, &osClearG, &osClearB);
++        Gfx_SetupFrame(gfxCtx, osClearR, osClearG, osClearB);
++    }
+ 
+     if ((HREG(80) != 10) || (HREG(82) != 0)) {
+         GameInteractor_ExecuteOnPlayDrawBegin();
+@@ -1453,7 +1460,8 @@ void Play_Draw(PlayState* play) {
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(83) != 0)) {
+-            if (play->skyboxId && (play->skyboxId != SKYBOX_UNSET_1D) && !play->envCtx.skyboxDisabled) {
++            if (play->skyboxId && (play->skyboxId != SKYBOX_UNSET_1D) && !play->envCtx.skyboxDisabled &&
++                !OcarinaStudio_HideWorld()) {
+                 if ((play->skyboxId == SKYBOX_NORMAL_SKY) || (play->skyboxId == SKYBOX_CUTSCENE_MAP)) {
+                     Environment_UpdateSkybox(play, play->skyboxId, &play->envCtx, &play->skyboxCtx);
+                     SkyboxDraw_Draw(&play->skyboxCtx, gfxCtx, play->skyboxId, play->envCtx.skyboxBlend,
+@@ -1466,13 +1474,15 @@ void Play_Draw(PlayState* play) {
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(90) & 2)) {
+-            if (!play->envCtx.sunMoonDisabled) {
++            if (!play->envCtx.sunMoonDisabled && !OcarinaStudio_HideWorld()) {
+                 Environment_DrawSunAndMoon(play);
+             }
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(90) & 1)) {
+-            Environment_DrawSkyboxFilters(play);
++            if (!OcarinaStudio_HideWorld()) {
++                Environment_DrawSkyboxFilters(play);
++            }
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(90) & 4)) {
+@@ -1487,7 +1497,7 @@ void Play_Draw(PlayState* play) {
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(84) != 0)) {
+-            if (VREG(94) == 0) {
++            if (VREG(94) == 0 && !OcarinaStudio_HideWorld()) {
+                 s32 roomDrawFlags;
+ 
+                 if (HREG(80) != 10) {
+@@ -1502,7 +1512,8 @@ void Play_Draw(PlayState* play) {
+         }
+ 
+         if ((HREG(80) != 10) || (HREG(83) != 0)) {
+-            if ((play->skyboxCtx.unk_140 != 0) && (GET_ACTIVE_CAM(play)->setting != CAM_SET_PREREND_FIXED)) {
++            if ((play->skyboxCtx.unk_140 != 0) && (GET_ACTIVE_CAM(play)->setting != CAM_SET_PREREND_FIXED) &&
++                !OcarinaStudio_HideWorld()) {
+                 Vec3f quakeOffset;
+ 
+                 Camera_GetSkyboxOffset(&quakeOffset, GET_ACTIVE_CAM(play));
+@@ -1511,7 +1522,7 @@ void Play_Draw(PlayState* play) {
+             }
+         }
+ 
+-        if (play->envCtx.unk_EE[1] != 0) {
++        if (play->envCtx.unk_EE[1] != 0 && !OcarinaStudio_HideWorld()) {
+             Environment_DrawRain(play, &play->view, gfxCtx);
+         }
+ 
