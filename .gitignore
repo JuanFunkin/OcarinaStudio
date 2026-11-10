@@ -1,0 +1,10 @@
+# Build output and local checkouts
+build/
+build-cmake/
+build-windows/
+shipwright/
+_packages/
+deps/
+*.o2r
+*.appimage
+*.zip
