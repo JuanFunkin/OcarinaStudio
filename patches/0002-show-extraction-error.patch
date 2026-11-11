@@ -1,0 +1,114 @@
+diff --git a/soh/soh/Extractor/Extract.cpp b/soh/soh/Extractor/Extract.cpp
+index de16a26..6ddc018 100644
+--- a/soh/soh/Extractor/Extract.cpp
++++ b/soh/soh/Extractor/Extract.cpp
+@@ -683,6 +683,7 @@ bool Extractor::CallTorch(std::string installPath, std::string exportdir, std::a
+                               std::filesystem::copy_options::overwrite_existing, ec);
+         if (ec) {
+             SPDLOG_ERROR("Failed to copy {} to {}: {}", archiveName, exportdir, ec.message());
++            SohTorch::SetLastError("Could not copy " + archiveName + " to " + exportdir + ": " + ec.message());
+             success = false;
+         }
+     }
+diff --git a/soh/soh/Extractor/TorchExtract.cpp b/soh/soh/Extractor/TorchExtract.cpp
+index e3a3877..7ee9a17 100644
+--- a/soh/soh/Extractor/TorchExtract.cpp
++++ b/soh/soh/Extractor/TorchExtract.cpp
+@@ -1,6 +1,7 @@
+ #include "TorchExtract.h"
+ 
+ #include <exception>
++#include <fstream>
+ #include <filesystem>
+ #include <memory>
+ #include <utility>
+@@ -14,6 +15,21 @@ namespace fs = std::filesystem;
+ 
+ namespace SohTorch {
+ 
++static std::string sLastError;
++
++const std::string& LastError() {
++    return sLastError;
++}
++
++void SetLastError(const std::string& message) {
++    sLastError = message;
++    SPDLOG_ERROR("Extraction error: {}", message);
++    std::ofstream file("OcarinaStudio-extraction-error.txt", std::ios::trunc);
++    if (file.is_open()) {
++        file << message << "\n";
++    }
++}
++
+ size_t CountAssetFiles(const std::string& ymlDir) {
+     std::error_code ec;
+     if (!fs::is_directory(ymlDir, ec)) {
+@@ -35,6 +51,7 @@ size_t CountAssetFiles(const std::string& ymlDir) {
+ std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const std::string& destDir,
+                     const std::string& portVersion, std::atomic<size_t>* progress) {
+     std::string archiveName;
++    sLastError.clear();
+ 
+     try {
+         // Companion::Instance is a raw global with no getter; factories dereference it.
+@@ -58,11 +75,11 @@ std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const s
+         companion.reset();
+         Companion::Instance = nullptr;
+     } catch (const std::exception& e) {
+-        SPDLOG_ERROR("Torch extraction failed: {}", e.what());
++        SetLastError(std::string("Torch extraction failed: ") + e.what() + "\nAssets folder: " + srcDir);
+         Companion::Instance = nullptr;
+         return "";
+     } catch (...) {
+-        SPDLOG_ERROR("Torch extraction failed with an unknown exception");
++        SetLastError("Torch extraction failed with an unknown exception.\nAssets folder: " + srcDir);
+         Companion::Instance = nullptr;
+         return "";
+     }
+@@ -71,7 +88,9 @@ std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const s
+     // archive is really there rather than trusting the run.
+     std::error_code ec;
+     if (archiveName.empty() || !fs::exists(fs::path(destDir) / archiveName, ec)) {
+-        SPDLOG_ERROR("Torch produced no archive in {}", destDir);
++        SetLastError("Torch finished but produced no archive.\nAssets folder: " + srcDir +
++                     "\nIf that folder is missing or empty, copy the \"assets\" folder from the download next to the "
++                     "game.");
+         return "";
+     }
+ 
+diff --git a/soh/soh/Extractor/TorchExtract.h b/soh/soh/Extractor/TorchExtract.h
+index 47a505f..933905f 100644
+--- a/soh/soh/Extractor/TorchExtract.h
++++ b/soh/soh/Extractor/TorchExtract.h
+@@ -21,4 +21,9 @@ size_t CountAssetFiles(const std::string& ymlDir);
+ std::string Extract(std::vector<uint8_t> rom, const std::string& srcDir, const std::string& destDir,
+                     const std::string& portVersion, std::atomic<size_t>* progress);
+ 
++// Why the last extraction failed, in plain text (empty if it did not fail). Shown to the user and also
++// written to OcarinaStudio-extraction-error.txt next to the game.
++const std::string& LastError();
++void SetLastError(const std::string& message);
++
+ } // namespace SohTorch
+diff --git a/soh/soh/OTRGlobals.cpp b/soh/soh/OTRGlobals.cpp
+index 79a804b..9489fd2 100644
+--- a/soh/soh/OTRGlobals.cpp
++++ b/soh/soh/OTRGlobals.cpp
+@@ -58,6 +58,7 @@
+ 
+ #if not defined(__SWITCH__) && not defined(__WIIU__)
+ #include "Extractor/Extract.h"
++#include "Extractor/TorchExtract.h"
+ #endif
+ 
+ #include <fast/interpreter.h>
+@@ -779,7 +780,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
+                 lastExtractFailed = extractFailed;
+                 if (extractFailed) {
+                     SohGui::RegisterPopup("Extraction Failed",
+-                                          "The ROM could not be extracted. Check the log for details.", "OK", "");
++                                          (std::string("The ROM could not be extracted.\n\n") + SohTorch::LastError()).c_str(), "OK", "");
+                     extractFailed = false;
+                 }
+                 extractionTask.reset();

@@ -26,7 +26,9 @@ namespace OcarinaStudio {
 static bool sWarpAllowed = false;
 
 void BlockStrayTransitions() {
-    if (gPlayState != nullptr && !sWarpAllowed && CVarGetInteger(Cvar::BlockWarps, 1) != 0 &&
+    // Only the green screen stage is sealed; once you warp to a real world, exits work again.
+    if (gPlayState != nullptr && !sWarpAllowed && CVarGetInteger(Cvar::StageMode, 0) != 0 &&
+        CVarGetInteger(Cvar::BlockWarps, 1) != 0 &&
         gPlayState->transitionTrigger == TRANS_TRIGGER_START) {
         gPlayState->transitionTrigger = TRANS_TRIGGER_OFF;
     }
@@ -46,6 +48,18 @@ bool WarpToEntrance(int entranceIndex) {
     gPlayState->transitionType = TRANS_TYPE_FADE_BLACK;
     gSaveContext.nextTransitionType = TRANS_TYPE_FADE_BLACK;
     return true;
+}
+
+void SetLinkAge(int age) {
+    if (gPlayState == nullptr || gSaveContext.linkAge == age) {
+        return;
+    }
+    gSaveContext.linkAge = age;
+    WarpToEntrance(gSaveContext.entranceIndex);
+}
+
+int GetLinkAge() {
+    return gSaveContext.linkAge;
 }
 
 bool ReloadCurrentScene() {
@@ -124,10 +138,18 @@ void DrawGameMenuItems() {
     ImGui::BeginDisabled(gPlayState == nullptr);
     for (const SceneEntry& scene : kScenes) {
         if (ImGui::MenuItem(scene.name)) {
+            // Going to a real world: the green screen stage turns off.
+            CVarSetInteger(Cvar::StageMode, 0);
+            CVarSave();
             WarpToEntrance(scene.entrance);
         }
     }
     ImGui::Separator();
+    if (ImGui::MenuItem("Empty green screen stage")) {
+        CVarSetInteger(Cvar::StageMode, 1);
+        CVarSave();
+        WarpToEntrance(kStageEntrance);
+    }
     if (ImGui::MenuItem("Reload current world")) {
         ReloadCurrentScene();
     }

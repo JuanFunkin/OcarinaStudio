@@ -161,6 +161,8 @@ jobs:
         (cd build-cmake && cpack -G External)
 
         mv build-cmake/*.appimage OcarinaStudio.appimage
+        cp studio/scripts/launcher/OcarinaAnimator.sh OcarinaAnimator.sh
+        chmod +x OcarinaAnimator.sh OcarinaStudio.appimage
       env:
         CC: gcc-12
         CXX: g++-12
@@ -168,7 +170,9 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: OcarinaStudio-linux-x86_64
-        path: OcarinaStudio.appimage
+        path: |
+          OcarinaStudio.appimage
+          OcarinaAnimator.sh
     - name: Save Cache deps folder
       if: ${{ github.ref_name == github.event.repository.default_branch }}
       uses: actions/cache/save@v5
@@ -243,6 +247,9 @@ jobs:
         mv _packages/*.zip _packages/OcarinaStudio-windows.zip
     - name: Unzip package
       run: Expand-Archive -Path _packages/OcarinaStudio-windows.zip -DestinationPath OcarinaStudio-windows
+    - name: Build OcarinaAnimator launcher
+      shell: cmd
+      run: cl /nologo /O1 /MT studio\scripts\launcher\animator_launcher.c /Fe:OcarinaStudio-windows\OcarinaAnimator.exe /Fo:animator_launcher.obj /link /SUBSYSTEM:WINDOWS user32.lib
     - name: Upload build
       uses: actions/upload-artifact@v7
       with:

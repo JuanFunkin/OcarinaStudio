@@ -12,6 +12,9 @@
 #include <libultraship/bridge/consolevariablebridge.h>
 #include <nlohmann/json.hpp>
 
+#include "soh/Enhancements/cosmetics/CosmeticsEditor.h"
+#include "soh/cvar_prefixes.h"
+
 /*
  * Link color palettes.
  *
@@ -46,15 +49,26 @@ Color_RGB8 GetColor(const LinkColor& color) {
     return CVarGetColor24(CosmeticCvar(color, ".Value").c_str(), fallback);
 }
 
+void ApplyToGame();
+
 void SetColor(const LinkColor& color, uint8_t r, uint8_t g, uint8_t b) {
     Color_RGBA8 value = { r, g, b, 255 };
     CVarSetColor(CosmeticCvar(color, ".Value").c_str(), value);
     CVarSetInteger(CosmeticCvar(color, ".Changed").c_str(), 1);
+    ApplyToGame();
 }
 
 void ResetColor(const LinkColor& color) {
     CVarClear(CosmeticCvar(color, ".Value").c_str());
     CVarClear(CosmeticCvar(color, ".Changed").c_str());
+    ApplyToGame();
+}
+
+// Hair, linen and boots are "advanced" cosmetics: the game only applies them when the cosmetics Advanced
+// Mode is on, and they are display list patches, so they must be re-applied after every change.
+void ApplyToGame() {
+    CVarSetInteger(CVAR_COSMETIC("AdvancedMode"), 1);
+    ApplyOrResetCustomGfxPatches(true);
 }
 
 std::string PaletteDir() {

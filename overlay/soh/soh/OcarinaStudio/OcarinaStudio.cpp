@@ -1,5 +1,6 @@
 #include "soh/OcarinaStudio/OcarinaStudio.h"
 #include "soh/OcarinaStudio/OSInternal.h"
+#include "soh/cvar_prefixes.h"
 
 #include <algorithm>
 #include <cctype>
@@ -126,6 +127,8 @@ void OnGameTick() {
     static bool sInitialized = false;
     if (!sInitialized) {
         sInitialized = true;
+        // Hair, boots and linen colors need the cosmetics Advanced Mode.
+        CVarSetInteger(CVAR_COSMETIC("AdvancedMode"), 1);
         MountEnabledModels();
         ReapplyEyeAssignments();
     }

@@ -12,14 +12,21 @@ The goal is to give machinima creators the same kind of workflow Saturn 64 offer
 
 ## Features
 
-OcarinaStudio skips the logos, the title screen and the file select. The game starts directly on a green screen with Link and no HUD, and everything is controlled from a **menu bar at the top of the window**, like Saturn 64. **F10** hides or shows the whole interface for a clean capture.
+OcarinaStudio skips the logos, the title screen and the file select. The game starts directly on a green screen with child Link and no HUD, and everything is controlled from a **menu bar at the top of the window**, like Saturn 64. **F10** hides or shows the whole interface for a clean capture.
 
 | Menu | What it does |
 | --- | --- |
-| **Game** | Warp to a world (Link's House, Kokiri Forest, Hyrule Field, Temple of Time...), reload the current world, or warp to any entrance index. |
-| **Stage** | Toggle the green screen, the HUD and message boxes. Pick any background color. |
-| **Camera** | **Game / Frozen / Free camera.** The free camera is OcarinaStudio's own, so nothing covers the shot. Adjustable speed, look sensitivity, roll and field of view. |
-| **Link** | Change the colors of Link's tunics, hair, linen and boots and **save / load palettes**. **Eyes:** force an expression or use **custom eyes** from PNG files in a folder. **Models:** enable `.o2r` model packs. **Animator:** freezes Link in a still standing pose (no game animation, no head-drags-torso), then pose him limb by limb on a timeline with auto keyframes, scrubbing, linear or smooth easing, looping and speed. Save and load poses and animations. |
+| **Menu** | Open the Animator, Stage options, warp by entrance index, **Settings** (FPS, audio, fullscreen, VSync). |
+| **Camera** | **Game / Frozen / Free camera** plus FOV, move speed and rotate speed. The free camera is OcarinaStudio's own, so nothing covers the shot. |
+| **Appearance** | **Customize** Link's colors (tunics, hair, linen, boots) with saved palettes, **custom eyes** from PNG files, **model packs** (`.o2r`), and child / adult Link. |
+| **Game** | Warp to a world (Link's House, Kokiri Forest, Hyrule Field, Temple of Time...). Warping to a world turns the green screen off. *Empty green screen stage* brings it back. Also the FPS presets (20 / 30 / 60). |
+| **CHROMA KEY** | Green screen on/off, background color, hide the game HUD and message boxes. |
+
+The game runs at **30 FPS** by default (the logic is still 20 ticks per second; the extra frames are interpolated). Change it in *Game > FPS* or *Menu > Settings*.
+
+### OcarinaAnimator
+
+`OcarinaAnimator` (`OcarinaAnimator.exe` on Windows, `OcarinaAnimator.sh` on Linux) is a second launcher that sits next to OcarinaStudio. It starts the same program in **Animator mode**: a green screen with Link standing still and the Animator window ready. Freeze Link on his standing pose and pose him limb by limb on a timeline with auto keyframes, scrubbing, linear or smooth easing, looping and speed. Save and load poses and animations.
 
 ### Free camera controls
 

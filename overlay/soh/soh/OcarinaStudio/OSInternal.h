@@ -53,7 +53,13 @@ void DrawEyesTab();
 void DrawModelsTab();
 void DrawPoseTab();
 void DrawScenesTab();
-void DrawGameMenuItems();   // world list for the Game menu
+void DrawSettingsTab();
+void DrawFpsMenuItems();
+bool IsAnimatorMode(); // started through OcarinaAnimator (OCARINA_ANIMATOR is set)
+void DrawGameMenuItems();
+void SetLinkAge(int age); // 0 = adult, 1 = child (reloads the world)
+int GetLinkAge();
+inline constexpr int kStageEntrance = 0x0BB; // Link's House: the empty green screen stage   // world list for the Game menu
 void DrawStageQuickItems(); // quick toggles for the Stage menu
 void DrawCameraQuickItems();// quick toggles for the Camera menu
 

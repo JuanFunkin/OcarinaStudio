@@ -1,10 +1,13 @@
 #include "soh/OcarinaStudio/OSInternal.h"
 #include "soh/OcarinaStudio/OSGame.h"
 
+#include <cstdlib>
+
 #include <libultraship/bridge/consolevariablebridge.h>
 
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
+#include "soh/cvar_prefixes.h"
 
 extern "C" {
 #include "functions.h"
@@ -21,9 +24,20 @@ void Sram_InitDebugSave(void);
  * Set gOcarinaStudio.BootToStage to 0 in the config file to get the normal title screen back.
  */
 
+namespace OcarinaStudio {
+
+// OcarinaAnimator.exe / OcarinaAnimator.sh start the same program with OCARINA_ANIMATOR set. In that mode the
+// game opens on the green screen with Link standing still and the Animator window ready.
+bool IsAnimatorMode() {
+    static const bool sAnimatorMode = std::getenv("OCARINA_ANIMATOR") != nullptr;
+    return sAnimatorMode;
+}
+
+} // namespace OcarinaStudio
+
 namespace {
 
-constexpr int kStartEntrance = 0x0BB; // Link's House
+constexpr int kStartEntrance = OcarinaStudio::kStageEntrance;
 
 void BootToStage(void* gameState) {
     if (CVarGetInteger("gOcarinaStudio.BootToStage", 1) == 0) {
@@ -31,12 +45,13 @@ void BootToStage(void* gameState) {
     }
     auto* title = static_cast<TitleContext*>(gameState);
 
-    // First boot only: show the clean stage (the user can change it afterwards).
-    if (CVarGetInteger("gOcarinaStudio.Configured", 0) == 0) {
-        CVarSetInteger(OcarinaStudio::Cvar::StageMode, 1);
-        CVarSetInteger(OcarinaStudio::Cvar::HideHud, 1);
-        CVarSetInteger(OcarinaStudio::Cvar::HideMessages, 1);
-        CVarSetInteger("gOcarinaStudio.Configured", 1);
+    // The studio always starts on the clean green screen stage. 30 FPS is the default (version 2 of the setup).
+    CVarSetInteger(OcarinaStudio::Cvar::StageMode, 1);
+    CVarSetInteger(OcarinaStudio::Cvar::HideHud, 1);
+    CVarSetInteger(OcarinaStudio::Cvar::HideMessages, 1);
+    if (CVarGetInteger("gOcarinaStudio.SetupVersion", 0) < 2) {
+        CVarSetInteger(CVAR_SETTING("InterpolationFPS"), 30);
+        CVarSetInteger("gOcarinaStudio.SetupVersion", 2);
         CVarSave();
     }
 
@@ -51,7 +66,7 @@ void BootToStage(void* gameState) {
     gSaveContext.fileNum = 0xFF;
     gSaveContext.sceneLayer = 0;
     gSaveContext.cutsceneIndex = 0;
-    gSaveContext.linkAge = 0;
+    gSaveContext.linkAge = 1; // child Link by default
     gSaveContext.nightFlag = 0;
     gSaveContext.skyboxTime = gSaveContext.dayTime = 0x8000;
 

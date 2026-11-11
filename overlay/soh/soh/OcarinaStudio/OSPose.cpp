@@ -312,6 +312,15 @@ void ApplyPose() {
     if (player == nullptr || player->skelAnime.jointTable == nullptr) {
         return;
     }
+    // Animator mode (OcarinaAnimator): start posing as soon as Link exists.
+    static bool sAutoStarted = false;
+    if (!sAutoStarted && IsAnimatorMode()) {
+        sAutoStarted = true;
+        sState.active = true;
+        sState.haveBase = false;
+        sState.captureDelay = 12;
+    }
+
     if (!sState.active) {
         SetLock(player, false);
         return;
