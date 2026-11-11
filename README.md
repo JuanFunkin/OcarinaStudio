@@ -50,7 +50,7 @@ OcarinaStudio keeps everything in an `OcarinaStudio` folder next to Ship of Hark
 
 - **Windows and Linux only.** There is no macOS build yet.
 - The free camera replaces the game camera's *output*; the game camera keeps running underneath, so cutscenes and targeting still behave normally.
-- The pose editor takes over limbs on top of the game's animation. *Lock Link in place* stops his movement while a pose or animation is active.
+- The pose editor takes over limbs on top of the game's animation. *Lock Link in place* disables his controller input while a pose or animation is active. Animations support linear or smooth easing.
 - Switching model packs reloads the current scene so Link is rebuilt with the new model.
 
 ---
@@ -79,6 +79,7 @@ patches/    The few engine hooks: HUD, background, camera output, window registr
 overlay/    The OcarinaStudio module, added to Ship of Harkinian as new files
 assets/     Logo and application icons
 scripts/    apply.sh, which applies the patches, the module and the icons
+tests/      Standalone unit tests for the pose/animation math (g++, no game needed)
 ```
 
 ---
