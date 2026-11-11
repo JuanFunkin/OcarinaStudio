@@ -14,6 +14,7 @@ namespace Cvar {
 // Stage / machinima
 inline constexpr const char* HideHud = "gOcarinaStudio.HideHud";
 inline constexpr const char* HideMessages = "gOcarinaStudio.HideMessages";
+inline constexpr const char* BlockWarps = "gOcarinaStudio.BlockWarps";
 inline constexpr const char* StageMode = "gOcarinaStudio.StageMode";
 inline constexpr const char* StageR = "gOcarinaStudio.StageColor.R";
 inline constexpr const char* StageG = "gOcarinaStudio.StageColor.G";
@@ -67,6 +68,8 @@ void MountEnabledModels();
 void ReapplyEyeAssignments();
 void OnSceneInit();
 void PoseOnSceneInit();
+void StageOnSceneInit();
+void BlockStrayTransitions();
 
 // Scenes
 bool WarpToEntrance(int entranceIndex);

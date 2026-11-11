@@ -121,6 +121,7 @@ bool SliderIntCvar(const char* label, const char* cvar, int min, int max, int de
 // ---------------------------------------------------------------------------------------------
 
 void OnGameTick() {
+    BlockStrayTransitions();
     // Deferred start-up work: the resource manager is ready by the first game frame.
     static bool sInitialized = false;
     if (!sInitialized) {
@@ -147,8 +148,10 @@ static void RegisterOcarinaStudioHooks() {
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t) {
         OnSceneInit();
         PoseOnSceneInit();
+        StageOnSceneInit();
     });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayerUpdate>([]() {
+        BlockStrayTransitions();
         ApplyEyeOverride();
         ApplyPose();
     });

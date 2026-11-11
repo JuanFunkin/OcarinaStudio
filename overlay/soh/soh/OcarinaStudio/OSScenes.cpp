@@ -22,10 +22,25 @@ const SceneEntry kScenes[] = {
 
 namespace OcarinaStudio {
 
+// Exits, doors and loading planes are ignored (the stage has no way out) unless the studio itself asked for the warp.
+static bool sWarpAllowed = false;
+
+void BlockStrayTransitions() {
+    if (gPlayState != nullptr && !sWarpAllowed && CVarGetInteger(Cvar::BlockWarps, 1) != 0 &&
+        gPlayState->transitionTrigger == TRANS_TRIGGER_START) {
+        gPlayState->transitionTrigger = TRANS_TRIGGER_OFF;
+    }
+}
+
+void StageOnSceneInit() {
+    sWarpAllowed = false;
+}
+
 bool WarpToEntrance(int entranceIndex) {
     if (gPlayState == nullptr) {
         return false;
     }
+    sWarpAllowed = true;
     gPlayState->nextEntranceIndex = static_cast<s16>(entranceIndex);
     gPlayState->transitionTrigger = TRANS_TRIGGER_START;
     gPlayState->transitionType = TRANS_TYPE_FADE_BLACK;
@@ -44,6 +59,7 @@ void DrawStageTab() {
     ImGui::TextWrapped("Hide everything that gets in the way of a clean shot.");
     CheckboxCvar("Hide HUD (hearts, buttons, minimap...)", Cvar::HideHud);
     CheckboxCvar("Hide message boxes", Cvar::HideMessages);
+    CheckboxCvar("Block exits and warps (Link stays on the stage)", Cvar::BlockWarps);
 
     ImGui::Separator();
     ImGui::TextWrapped("Green screen stage: hides the scene and the sky and fills the background with a flat "
