@@ -203,6 +203,78 @@ std::vector<std::string> ListPngs() {
     return files;
 }
 
+// ---- Eye sets: a folder inside eyes/ holding one image per slot -------------------------------------
+
+std::vector<std::string> ListEyeSets() {
+    std::vector<std::string> sets;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(EyeDir(), ec)) {
+        if (entry.is_directory()) {
+            sets.push_back(entry.path().filename().string());
+        }
+    }
+    std::sort(sets.begin(), sets.end());
+    return sets;
+}
+
+// Maps a file name (without extension) to an eye slot, or -1.
+int SlotForName(std::string name) {
+    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+    name.erase(std::remove_if(name.begin(), name.end(), [](unsigned char c) { return c == ' ' || c == '_' || c == '-'; }),
+               name.end());
+    static const struct {
+        const char* name;
+        int slot;
+    } kNames[] = { { "open", 0 },      { "half", 1 },       { "halfclosed", 1 }, { "closed", 2 },    { "close", 2 },
+                   { "left", 3 },      { "lookleft", 3 },   { "right", 4 },      { "lookright", 4 }, { "shock", 5 },
+                   { "shocked", 5 },   { "unk1", 6 },       { "unused1", 6 },    { "unk2", 7 },      { "unused2", 7 } };
+    for (const auto& entry : kNames) {
+        if (name == entry.name) {
+            return entry.slot;
+        }
+    }
+    return -1;
+}
+
+// Applies every recognised image of the set (open.png, half.png, closed.png, left.png, right.png, shock.png).
+// A set holding a single image of any name is used for all slots. Returns how many slots were set.
+int ApplySet(const std::string& set, int ageMode) {
+    std::vector<std::pair<int, std::string>> found;
+    std::vector<std::string> others;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::path(EyeDir()) / set, ec)) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (ext != ".png") {
+            continue;
+        }
+        const std::string relative = set + "/" + entry.path().filename().string();
+        const int slot = SlotForName(entry.path().stem().string());
+        if (slot >= 0) {
+            found.emplace_back(slot, relative);
+        } else {
+            others.push_back(relative);
+        }
+    }
+    if (found.empty() && others.size() == 1) {
+        for (int slot = 0; slot < kEyeSlotCount; slot++) {
+            found.emplace_back(slot, others[0]);
+        }
+    }
+    for (const auto& [slot, relative] : found) {
+        if (ageMode == 0 || ageMode == 2) {
+            Assign(relative, AGE_ADULT, slot);
+        }
+        if (ageMode == 1 || ageMode == 2) {
+            Assign(relative, AGE_CHILD, slot);
+        }
+    }
+    return static_cast<int>(found.size());
+}
+
 } // namespace
 
 namespace OcarinaStudio {
@@ -253,7 +325,35 @@ void DrawEyesTab() {
     }
 
     ImGui::Separator();
-    ImGui::Text("Custom eyes");
+    ImGui::Text("Eye sets");
+    ImGui::TextWrapped("Each folder inside the eyes folder is a set. Name the images open, half, closed, left, "
+                       "right and shock (.png). A folder with one image uses it for every slot.");
+    static std::vector<std::string> sSets = ListEyeSets();
+    static int sSetAge = 2;
+    if (ImGui::Button("Refresh sets")) {
+        sSets = ListEyeSets();
+    }
+    ImGui::SameLine();
+    ImGui::RadioButton("Adult##set", &sSetAge, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton("Child##set", &sSetAge, 1);
+    ImGui::SameLine();
+    ImGui::RadioButton("Both##set", &sSetAge, 2);
+    ImGui::BeginChild("eyesets", ImVec2(0, 110), true);
+    if (sSets.empty()) {
+        ImGui::TextDisabled("No set folders yet.");
+    }
+    for (const std::string& set : sSets) {
+        if (ImGui::Selectable(set.c_str())) {
+            const int count = ApplySet(set, sSetAge);
+            sStatus = count > 0 ? "Applied \"" + set + "\" (" + std::to_string(count) + " slots)."
+                                : "No recognised images in \"" + set + "\".";
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::Separator();
+    ImGui::Text("Single image");
     ImGui::TextWrapped("Put PNG images in the folder below. They are resized to the size of the original eye "
                        "texture. Pick a slot and press Apply.");
     ImGui::TextDisabled("%s", EyeDir().c_str());

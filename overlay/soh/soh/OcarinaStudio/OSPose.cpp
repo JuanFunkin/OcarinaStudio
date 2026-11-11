@@ -7,11 +7,16 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include <cstdlib>
 
 #include <imgui.h>
 #include <nlohmann/json.hpp>
 
 #include "soh/OcarinaStudio/OSPoseMath.h"
+
+extern "C" {
+#include "functions.h"
+}
 
 /*
  * Animator: poses and keyframe animations for Link.
@@ -33,6 +38,8 @@
  * Poses are saved in <app dir>/OcarinaStudio/poses/*.json and animations in .../animations/*.json.
  * Animations play at the game rate (20 ticks per second).
  */
+
+extern "C" char** ResourceMgr_ListFiles(const char* searchMask, int* resultSize);
 
 namespace {
 
@@ -78,6 +85,50 @@ struct AnimatorState {
 } sState;
 
 std::string sStatus;
+
+// ---- Animation Mixtape: Link's original animations, baked into keyframes ---------------------------
+
+struct Mixtape {
+    std::vector<std::string> names; // full archive paths without the __OTR__ prefix
+    bool loaded = false;
+    char filter[64] = "";
+    int selected = -1;
+    int step = 2;           // one keyframe every `step` frames when baking
+    bool baking = false;
+    int ticks = 0;
+    int endFrame = 0;
+    std::string path;       // "__OTR__..." path of the animation being played (must outlive the SkelAnime)
+    std::vector<Keyframe> recorded;
+} sMix;
+
+constexpr const char* kAnimPrefix = "objects/gameplay_keep/gPlayerAnim_";
+
+void LoadMixtapeList() {
+    sMix.loaded = true;
+    sMix.names.clear();
+    int count = 0;
+    char** files = ResourceMgr_ListFiles("objects/gameplay_keep/gPlayerAnim_*", &count);
+    if (files == nullptr) {
+        return;
+    }
+    for (int i = 0; i < count; i++) {
+        sMix.names.emplace_back(files[i]);
+        std::free(files[i]);
+    }
+    std::free(files);
+    std::sort(sMix.names.begin(), sMix.names.end());
+}
+
+std::string ShortAnimName(const std::string& path) {
+    return path.size() > std::strlen(kAnimPrefix) ? path.substr(std::strlen(kAnimPrefix)) : path;
+}
+
+bool ContainsNoCase(const std::string& text, const char* filter) {
+    std::string a = text, b = filter;
+    std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c) { return std::tolower(c); });
+    return a.find(b) != std::string::npos;
+}
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -296,6 +347,43 @@ bool Timeline() {
     return changed;
 }
 
+void StartBake(Player* player, const std::string& fullPath) {
+    sMix.path = "__OTR__" + fullPath;
+    auto* animation = reinterpret_cast<LinkAnimationHeader*>(const_cast<char*>(sMix.path.c_str()));
+    sMix.endFrame = Animation_GetLastFrame(animation);
+    LinkAnimation_Change(gPlayState, &player->skelAnime, animation, 1.0f, 0.0f, static_cast<f32>(sMix.endFrame),
+                         ANIMMODE_ONCE, 0.0f);
+    sMix.baking = true;
+    sMix.ticks = 0;
+    sMix.recorded.clear();
+    sState.playing = false;
+}
+
+// Called every tick while baking. The joints we read at this point are the ones the game loaded last tick,
+// so the first tick records nothing.
+void BakeTick(Player* player) {
+    const int frame = sMix.ticks - 1;
+    sMix.ticks++;
+    if (frame >= 0) {
+        if (frame % std::max(sMix.step, 1) == 0 || frame >= sMix.endFrame) {
+            Keyframe key;
+            key.frame = frame;
+            key.pose = ReadGamePose(player);
+            sMix.recorded.push_back(key);
+        }
+    }
+    if (frame >= sMix.endFrame || sMix.ticks > sMix.endFrame + 12) {
+        sMix.baking = false;
+        if (!sMix.recorded.empty()) {
+            sState.keys = sMix.recorded;
+            SortKeys(sState.keys);
+            sState.length = std::max(sMix.endFrame, 1);
+            sState.time = 0.0f;
+            sStatus = "Baked " + std::to_string(sState.keys.size()) + " keyframes.";
+        }
+    }
+}
+
 } // namespace
 
 namespace OcarinaStudio {
@@ -338,6 +426,11 @@ void ApplyPose() {
         sState.base = ReadGamePose(player);
         sState.baseYaw = player->actor.shape.rot.y;
         sState.haveBase = true;
+    }
+
+    if (sMix.baking) {
+        BakeTick(player);
+        return;
     }
 
     if (sState.playing) {
@@ -506,6 +599,43 @@ void DrawFileControls() {
 }
 
 
+void DrawMixtape() {
+    if (!sMix.loaded) {
+        LoadMixtapeList();
+    }
+    ImGui::TextDisabled("%zu original animations. Bake one into keyframes, then edit it.", sMix.names.size());
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::InputTextWithHint("##mixfilter", "Search...", sMix.filter, sizeof(sMix.filter));
+    ImGui::BeginChild("mixlist", ImVec2(0, 170), true);
+    for (int i = 0; i < static_cast<int>(sMix.names.size()); i++) {
+        if (sMix.filter[0] != '\0' && !ContainsNoCase(sMix.names[i], sMix.filter)) {
+            continue;
+        }
+        ImGui::PushID(i);
+        if (ImGui::Selectable(ShortAnimName(sMix.names[i]).c_str(), sMix.selected == i)) {
+            sMix.selected = i;
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    ImGui::BeginDisabled(sMix.selected < 0 || sMix.baking || !sState.haveBase || CurrentPlayer() == nullptr);
+    if (ImGui::Button("Bake into timeline")) {
+        StartBake(CurrentPlayer(), sMix.names[sMix.selected]);
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(110.0f);
+    const char* kSteps[] = { "Every frame", "Every 2 frames", "Every 4 frames" };
+    int stepIndex = sMix.step == 1 ? 0 : (sMix.step == 2 ? 1 : 2);
+    if (ImGui::Combo("##mixstep", &stepIndex, kSteps, 3)) {
+        sMix.step = stepIndex == 0 ? 1 : (stepIndex == 1 ? 2 : 4);
+    }
+    if (sMix.baking) {
+        ImGui::TextDisabled("Recording %d / %d...", std::max(sMix.ticks - 1, 0), sMix.endFrame);
+    }
+    ImGui::TextDisabled("Replaces the current keyframes.");
+}
+
 // Track grid: one row per limb with a diamond on every keyframe, a ruler on top and the playhead.
 void DrawTrackGrid() {
     const float labelW = 150.0f;
@@ -620,6 +750,9 @@ void DrawAnimatorLayout() {
             ImGui::TextDisabled("Settling Link into his standing pose...");
         } else {
             ImGui::TextDisabled("Drag a value to pose Link. It keys the current frame.");
+            if (ImGui::CollapsingHeader("Animation Mixtape")) {
+                DrawMixtape();
+            }
             DrawValueRows();
             ImGui::Separator();
             DrawFileControls();
@@ -676,6 +809,9 @@ void DrawPoseTab() {
     }
     ImGui::Separator();
 
+    if (ImGui::CollapsingHeader("Animation Mixtape")) {
+        DrawMixtape();
+    }
     DrawTransportControls();
     ImGui::Separator();
 

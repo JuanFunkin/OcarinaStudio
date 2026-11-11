@@ -26,7 +26,7 @@ The game runs at **30 FPS** by default (the logic is still 20 ticks per second; 
 
 ### OcarinaAnimator
 
-`OcarinaAnimator` (`OcarinaAnimator.exe` on Windows, `OcarinaAnimator.sh` on Linux) is a second launcher that sits next to OcarinaStudio. It starts the same program in **Animator mode**: a green screen with Link standing still and the Animator window ready. The layout follows Saturn Studio: numeric values for every limb on the right (three fields per limb), and a timeline across the bottom with one track per limb and a diamond on every keyframe. Link is frozen on his standing pose; dragging a value keys the current frame. Scrub by clicking the ruler, play with looping, speed and linear or smooth easing. Save and load poses and animations.
+`OcarinaAnimator` (`OcarinaAnimator.exe` on Windows, `OcarinaAnimator.sh` on Linux) is a second launcher that sits next to OcarinaStudio. It starts the same program in **Animator mode**: a green screen with Link standing still and the Animator window ready. The layout follows Saturn Studio: numeric values for every limb on the right (three fields per limb), and a timeline across the bottom with one track per limb and a diamond on every keyframe. Link is frozen on his standing pose; dragging a value keys the current frame. Scrub by clicking the ruler, play with looping, speed and linear or smooth easing. The **Animation Mixtape** lists Link's original animations (with search): *Bake into timeline* turns one into keyframes you can edit. Save and load poses and animations.
 
 ### Free camera controls
 
@@ -44,7 +44,7 @@ OcarinaStudio keeps everything in an `OcarinaStudio` folder next to Ship of Hark
 
 | Folder | Contents |
 | --- | --- |
-| `OcarinaStudio/eyes/` | Your custom eye images (`.png`). They are resized to the original eye texture size. |
+| `OcarinaStudio/eyes/` | Your custom eye images (`.png`), resized to the original eye texture size. A **subfolder is an eye set**: name its images `open`, `half`, `closed`, `left`, `right`, `shock` (a folder with one image uses it for every slot). |
 | `OcarinaStudio/palettes/` | Saved color palettes (`.json`). |
 | `OcarinaStudio/models/` | Model packs (`.o2r`). |
 | `OcarinaStudio/poses/` | Saved poses (`.json`). |
