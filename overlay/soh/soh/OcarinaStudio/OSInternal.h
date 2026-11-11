@@ -52,6 +52,9 @@ void DrawEyesTab();
 void DrawModelsTab();
 void DrawPoseTab();
 void DrawScenesTab();
+void DrawGameMenuItems();   // world list for the Game menu
+void DrawStageQuickItems(); // quick toggles for the Stage menu
+void DrawCameraQuickItems();// quick toggles for the Camera menu
 
 // Camera
 void RecaptureCamera();

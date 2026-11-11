@@ -12,17 +12,14 @@ The goal is to give machinima creators the same kind of workflow Saturn 64 offer
 
 ## Features
 
-Everything lives in one panel, opened with **F10** (or from the window list). It has seven tabs.
+OcarinaStudio skips the logos, the title screen and the file select. The game starts directly on a green screen with Link and no HUD, and everything is controlled from a **menu bar at the top of the window**, like Saturn 64. **F10** hides or shows the whole interface for a clean capture.
 
-| Tab | What it does |
+| Menu | What it does |
 | --- | --- |
-| **Stage** | Hide the HUD and message boxes. Green screen stage: hides the scene and sky and fills the background with a flat color (green by default, any color you want) so Link can be keyed out in your video editor. One click on *Start clean stage* warps to an empty room with everything hidden. |
-| **Worlds** | Warp to a world (scene), or to any entrance index. Reload the current scene. |
-| **Camera** | **Game / Frozen / Free camera.** The free camera is OcarinaStudio's own, not the stock one, so nothing covers the shot. Adjustable speed, look sensitivity, roll and field of view. |
-| **Link** | Change the colors of Link's tunics, hair, linen and boots. **Save and load palettes** as small `.json` files. |
-| **Eyes** | Force an eye expression and mouth. **Custom eyes:** drop PNG files in a folder and assign them to any eye slot, for adult and/or child Link. |
-| **Models** | Enable and disable model packs (`.o2r`) to swap Link's model, using Ship of Harkinian's own mod support. |
-| **Pose** | Pose Link limb by limb, save and load poses, and build **keyframe animations** with playback, looping and speed control. |
+| **Game** | Warp to a world (Link's House, Kokiri Forest, Hyrule Field, Temple of Time...), reload the current world, or warp to any entrance index. |
+| **Stage** | Toggle the green screen, the HUD and message boxes. Pick any background color. |
+| **Camera** | **Game / Frozen / Free camera.** The free camera is OcarinaStudio's own, so nothing covers the shot. Adjustable speed, look sensitivity, roll and field of view. |
+| **Link** | Change the colors of Link's tunics, hair, linen and boots and **save / load palettes**. **Eyes:** force an expression or use **custom eyes** from PNG files in a folder. **Models:** enable `.o2r` model packs. **Pose and animation:** pose Link limb by limb, save poses, and build **keyframe animations** (linear or smooth easing, looping, speed). |
 
 ### Free camera controls
 

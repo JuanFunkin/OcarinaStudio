@@ -36,4 +36,9 @@ cp "$HERE/assets/icons/icon.ico"      "$UP/soh/SHIPOFHARKINIAN.ico"
 cp "$HERE/assets/icons/icon-1024.png" "$UP/soh/macosx/sohIcon.png"
 cp "$HERE/assets/icons/icon-256.jpg"  "$UP/soh/icon.jpg"
 
+echo "==> Renaming the application to OcarinaStudio (window title and user-facing messages)"
+for f in soh/soh/OTRGlobals.cpp soh/soh/Extractor/Extract.cpp soh/soh/SohGui/SohMenuNetwork.cpp soh/macosx/Info.plist.in; do
+    sed -i -e 's/Ship of Harkinian/OcarinaStudio/g' -e '/^[[:space:]]*\/\//!s/\bSoH\b/OcarinaStudio/g' "$UP/$f"
+done
+
 echo "==> Done"

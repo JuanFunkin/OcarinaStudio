@@ -101,6 +101,41 @@ void DrawStageTab() {
     }
 }
 
+void DrawGameMenuItems() {
+    if (gPlayState == nullptr) {
+        ImGui::TextDisabled("Starting the game...");
+    }
+    ImGui::BeginDisabled(gPlayState == nullptr);
+    for (const SceneEntry& scene : kScenes) {
+        if (ImGui::MenuItem(scene.name)) {
+            WarpToEntrance(scene.entrance);
+        }
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Reload current world")) {
+        ReloadCurrentScene();
+    }
+    ImGui::EndDisabled();
+}
+
+void DrawStageQuickItems() {
+    bool value = CVarGetInteger(Cvar::StageMode, 0) != 0;
+    if (ImGui::MenuItem("Green screen", nullptr, &value)) {
+        CVarSetInteger(Cvar::StageMode, value ? 1 : 0);
+        CVarSave();
+    }
+    value = CVarGetInteger(Cvar::HideHud, 0) != 0;
+    if (ImGui::MenuItem("Hide HUD", nullptr, &value)) {
+        CVarSetInteger(Cvar::HideHud, value ? 1 : 0);
+        CVarSave();
+    }
+    value = CVarGetInteger(Cvar::HideMessages, 0) != 0;
+    if (ImGui::MenuItem("Hide message boxes", nullptr, &value)) {
+        CVarSetInteger(Cvar::HideMessages, value ? 1 : 0);
+        CVarSave();
+    }
+}
+
 void DrawScenesTab() {
     ImGui::TextWrapped("Go to a world. This warps Link to the chosen entrance (a save file must be loaded).");
     if (gPlayState == nullptr) {

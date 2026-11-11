@@ -193,6 +193,17 @@ void RecaptureCamera() {
     sCam.captured = false;
 }
 
+void DrawCameraQuickItems() {
+    const int mode = CVarGetInteger(Cvar::CameraMode, 0);
+    const char* names[3] = { "Game camera", "Frozen camera", "Free camera" };
+    for (int i = 0; i < 3; i++) {
+        if (ImGui::MenuItem(names[i], nullptr, mode == i)) {
+            CVarSetInteger(Cvar::CameraMode, i);
+            CVarSave();
+        }
+    }
+}
+
 void DrawCameraTab() {
     int mode = CVarGetInteger(Cvar::CameraMode, 0);
     bool changed = false;
