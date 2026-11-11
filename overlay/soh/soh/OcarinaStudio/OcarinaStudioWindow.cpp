@@ -87,22 +87,15 @@ void OcarinaStudioWindow::Draw() {
         return;
     }
 
-    // OcarinaAnimator: open the Animator window once, docked on the right.
-    static bool sAnimatorOpened = false;
-    static bool sPlaceAnimator = false;
     const bool animatorMode = OcarinaStudio::IsAnimatorMode();
-    if (animatorMode && !sAnimatorOpened) {
-        sAnimatorOpened = true;
-        sTools[kAnimator].open = true;
-        sTools[kAnimator].size = ImVec2(540, ImGui::GetIO().DisplaySize.y - 40.0f);
-        sPlaceAnimator = true;
-    }
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Menu")) {
             ImGui::TextDisabled("F10 hides / shows the whole interface");
             ImGui::Separator();
-            ImGui::MenuItem("Animator", nullptr, &sTools[kAnimator].open);
+            if (!animatorMode) {
+                ImGui::MenuItem("Animator", nullptr, &sTools[kAnimator].open);
+            }
             ImGui::MenuItem("Stage options", nullptr, &sTools[kStage].open);
             ImGui::MenuItem("Warp to entrance index", nullptr, &sTools[kEntrance].open);
             ImGui::Separator();
@@ -148,14 +141,13 @@ void OcarinaStudioWindow::Draw() {
         ImGui::EndMainMenuBar();
     }
 
+    if (animatorMode) {
+        OcarinaStudio::DrawAnimatorLayout();
+    }
+
     for (Tool& tool : sTools) {
-        if (!tool.open) {
+        if (!tool.open || (animatorMode && &tool == &sTools[kAnimator])) {
             continue;
-        }
-        if (&tool == &sTools[kAnimator] && sPlaceAnimator) {
-            sPlaceAnimator = false;
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 550.0f, 24.0f));
-            ImGui::SetNextWindowSize(tool.size);
         }
         ImGui::SetNextWindowSize(tool.size, ImGuiCond_FirstUseEver);
         if (ImGui::Begin(tool.title, &tool.open)) {

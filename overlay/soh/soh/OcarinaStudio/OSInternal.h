@@ -55,6 +55,7 @@ void DrawPoseTab();
 void DrawScenesTab();
 void DrawSettingsTab();
 void DrawFpsMenuItems();
+void DrawAnimatorLayout();
 bool IsAnimatorMode(); // started through OcarinaAnimator (OCARINA_ANIMATOR is set)
 void DrawGameMenuItems();
 void SetLinkAge(int age); // 0 = adult, 1 = child (reloads the world)

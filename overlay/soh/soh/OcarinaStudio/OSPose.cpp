@@ -347,42 +347,7 @@ void ApplyPose() {
     ApplyJoints(player, PoseAt(sState.time));
 }
 
-void DrawPoseTab() {
-    Player* player = CurrentPlayer();
-
-    // ---- Start / stop ----
-    if (!sState.active) {
-        ImGui::TextWrapped("The animator freezes Link in his standing pose so you can pose and animate him "
-                           "limb by limb. His movement and the game's own animation stop while it is on.");
-        ImGui::BeginDisabled(player == nullptr);
-        if (ImGui::Button("Start animator", ImVec2(-1, 0))) {
-            sState.active = true;
-            sState.haveBase = false;
-            sState.captureDelay = 12;
-        }
-        ImGui::EndDisabled();
-        if (player == nullptr) {
-            ImGui::TextDisabled("Waiting for the game to start...");
-        }
-        return;
-    }
-
-    if (ImGui::Button("Stop animator (back to the game)")) {
-        sState.active = false;
-        sState.playing = false;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Recapture standing pose")) {
-        sState.haveBase = false;
-        sState.captureDelay = 0;
-        sState.active = true;
-    }
-    if (!sState.haveBase) {
-        ImGui::TextDisabled("Settling Link into his standing pose...");
-        return;
-    }
-    ImGui::Separator();
-
+void DrawTransportControls() {
     // ---- Timeline and playback ----
     ImGui::Text("Frame %d / %d    (%.2f s)", CurrentFrame(), TotalLength(),
                 static_cast<float>(CurrentFrame()) / static_cast<float>(kTicksPerSecond));
@@ -460,8 +425,261 @@ void DrawPoseTab() {
         sState.playing = false;
     }
     ImGui::TextDisabled("%zu keyframe(s). Yellow diamonds on the timeline are keyframes.", sState.keys.size());
+}
 
+void DrawFileControls() {
+    // ---- Poses ----
+    static char sPoseName[64] = "";
+    static std::vector<std::string> sPoses = ListJson(DataDir("poses"));
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::InputText("##posename", sPoseName, sizeof(sPoseName));
+    ImGui::SameLine();
+    if (ImGui::Button("Save pose")) {
+        const std::string name = SanitizeName(sPoseName);
+        if (name.empty()) {
+            sStatus = "Type a pose name first.";
+        } else if (SavePose(name, PoseAt(sState.time))) {
+            sStatus = "Saved pose \"" + name + "\".";
+            sPoses = ListJson(DataDir("poses"));
+        } else {
+            sStatus = "Could not write the pose file.";
+        }
+    }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::BeginCombo("##loadpose", "Load pose here...")) {
+        for (const std::string& name : sPoses) {
+            if (ImGui::Selectable(name.c_str())) {
+                Pose loaded = PoseAt(sState.time);
+                Pose fromFile;
+                if (LoadPose(name, fromFile)) {
+                    for (int i = 0; i < kLimbCount; i++) {
+                        if (fromFile.enabled[i]) {
+                            for (int axis = 0; axis < 3; axis++) {
+                                loaded.rot[i][axis] = fromFile.rot[i][axis];
+                            }
+                        }
+                    }
+                    UpsertKey(loaded);
+                    sStatus = "Loaded pose \"" + name + "\" at frame " + std::to_string(CurrentFrame()) + ".";
+                } else {
+                    sStatus = "Could not read \"" + name + "\".";
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    // ---- Animations ----
+    static char sAnimName[64] = "";
+    static std::vector<std::string> sAnims = ListJson(DataDir("animations"));
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::InputText("##animname", sAnimName, sizeof(sAnimName));
+    ImGui::SameLine();
+    if (ImGui::Button("Save animation")) {
+        const std::string name = SanitizeName(sAnimName);
+        if (name.empty()) {
+            sStatus = "Type an animation name first.";
+        } else if (sState.keys.empty()) {
+            sStatus = "There are no keyframes to save.";
+        } else if (SaveAnimation(name)) {
+            sStatus = "Saved animation \"" + name + "\".";
+            sAnims = ListJson(DataDir("animations"));
+        } else {
+            sStatus = "Could not write the animation file.";
+        }
+    }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::BeginCombo("##loadanim", "Load animation...")) {
+        for (const std::string& name : sAnims) {
+            if (ImGui::Selectable(name.c_str())) {
+                sStatus = LoadAnimation(name) ? "Loaded animation \"" + name + "\"." : "Could not read \"" + name + "\".";
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (!sStatus.empty()) {
+        ImGui::TextWrapped("%s", sStatus.c_str());
+    }
+}
+
+
+// Track grid: one row per limb with a diamond on every keyframe, a ruler on top and the playhead.
+void DrawTrackGrid() {
+    const float labelW = 150.0f;
+    const float rulerH = 18.0f;
+    const float rowH = 18.0f;
+    const float width = std::max(ImGui::GetContentRegionAvail().x, 300.0f);
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const float x0 = origin.x + labelW;
+    const float trackW = width - labelW - 10.0f;
+    const int total = std::max(TotalLength(), 1);
+
+    ImGui::InvisibleButton("##grid", ImVec2(width, rulerH + rowH * kLimbCount));
+    if (ImGui::IsItemActive()) {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        if (mouse.x >= x0) {
+            const float t = std::clamp((mouse.x - x0) / trackW, 0.0f, 1.0f);
+            sState.time = std::round(t * static_cast<float>(total));
+            sState.playing = false;
+        }
+        if (ImGui::IsItemClicked() && mouse.y > origin.y + rulerH) {
+            const int row = static_cast<int>((mouse.y - origin.y - rulerH) / rowH);
+            if (row >= 0 && row < kLimbCount) {
+                sState.selected = kDisplayOrder[row];
+            }
+        }
+    }
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const float bottom = origin.y + rulerH + rowH * kLimbCount;
+    // ruler
+    const int step = total > 200 ? 20 : (total > 80 ? 10 : 5);
+    for (int f = 0; f <= total; f += step) {
+        const float x = x0 + trackW * static_cast<float>(f) / static_cast<float>(total);
+        draw->AddLine(ImVec2(x, origin.y + 8.0f), ImVec2(x, bottom), IM_COL32(70, 70, 78, 255));
+        char num[16];
+        std::snprintf(num, sizeof(num), "%d", f);
+        draw->AddText(ImVec2(x + 2.0f, origin.y), IM_COL32(190, 190, 200, 255), num);
+    }
+    // rows
+    for (int n = 0; n < kLimbCount; n++) {
+        const int limb = kDisplayOrder[n];
+        const float y = origin.y + rulerH + rowH * static_cast<float>(n);
+        const bool selected = limb == sState.selected;
+        draw->AddRectFilled(ImVec2(origin.x, y), ImVec2(x0 + trackW, y + rowH - 1.0f),
+                            selected ? IM_COL32(60, 70, 100, 255) : IM_COL32(n % 2 ? 34 : 28, n % 2 ? 34 : 28, 38, 255));
+        draw->AddText(ImVec2(origin.x + 4.0f, y + 2.0f), IM_COL32(225, 225, 230, 255), kLimbs[limb].name);
+        for (const Keyframe& key : sState.keys) {
+            const float x = x0 + trackW * static_cast<float>(key.frame) / static_cast<float>(total);
+            const float cy = y + rowH * 0.5f;
+            draw->AddQuadFilled(ImVec2(x, cy - 5), ImVec2(x + 5, cy), ImVec2(x, cy + 5), ImVec2(x - 5, cy),
+                                IM_COL32(255, 200, 40, 255));
+        }
+    }
+    // playhead
+    const float px = x0 + trackW * std::clamp(sState.time / static_cast<float>(total), 0.0f, 1.0f);
+    draw->AddLine(ImVec2(px, origin.y), ImVec2(px, bottom), IM_COL32(255, 60, 60, 255), 2.0f);
+}
+
+// One row per limb with three numeric fields (degrees; the first row is the hips position), like Saturn Studio.
+void DrawValueRows() {
+    Pose pose = PoseAt(sState.time);
+    bool edited = false;
+    for (int n = 0; n < kLimbCount; n++) {
+        const int limb = kDisplayOrder[n];
+        ImGui::PushID(limb);
+        float values[3];
+        for (int axis = 0; axis < 3; axis++) {
+            values[axis] = limb == 0 ? static_cast<float>(pose.rot[0][axis]) : S16ToDeg(pose.rot[limb][axis]);
+        }
+        ImGui::SetNextItemWidth(230.0f);
+        if (ImGui::DragFloat3("##v", values, limb == 0 ? 4.0f : 0.5f, 0.0f, 0.0f, limb == 0 ? "%.0f" : "%.1f")) {
+            for (int axis = 0; axis < 3; axis++) {
+                pose.rot[limb][axis] = limb == 0 ? static_cast<int16_t>(std::clamp(values[axis], -32768.0f, 32767.0f))
+                                                 : DegToS16(values[axis]);
+            }
+            sState.selected = limb;
+            edited = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("R")) {
+            for (int axis = 0; axis < 3; axis++) {
+                pose.rot[limb][axis] = sState.base.rot[limb][axis];
+            }
+            edited = true;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Reset this limb to the standing pose");
+        }
+        ImGui::SameLine();
+        ImGui::TextUnformatted(kLimbs[limb].name);
+        ImGui::PopID();
+    }
+    if (edited) {
+        sState.playing = false;
+        UpsertKey(pose);
+    }
+}
+
+// The OcarinaAnimator layout: pose values on the right, the timeline with one track per limb at the bottom.
+void DrawAnimatorLayout() {
+    const ImGuiIO& io = ImGui::GetIO();
+    const float menuH = ImGui::GetFrameHeight();
+    const float timelineH = std::max(260.0f, io.DisplaySize.y * 0.36f);
+    const float panelW = 400.0f;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - panelW, menuH));
+    ImGui::SetNextWindowSize(ImVec2(panelW, io.DisplaySize.y - menuH - timelineH));
+    if (ImGui::Begin("Pose", nullptr, flags)) {
+        if (!sState.active || !sState.haveBase) {
+            ImGui::TextDisabled("Settling Link into his standing pose...");
+        } else {
+            ImGui::TextDisabled("Drag a value to pose Link. It keys the current frame.");
+            DrawValueRows();
+            ImGui::Separator();
+            DrawFileControls();
+        }
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(ImVec2(0.0f, io.DisplaySize.y - timelineH));
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, timelineH));
+    if (ImGui::Begin("Timeline", nullptr, flags)) {
+        if (sState.active && sState.haveBase) {
+            DrawTransportControls();
+            ImGui::BeginChild("tracks", ImVec2(0, 0), false);
+            DrawTrackGrid();
+            ImGui::EndChild();
+        }
+    }
+    ImGui::End();
+}
+
+void DrawPoseTab() {
+    Player* player = CurrentPlayer();
+
+    // ---- Start / stop ----
+    if (!sState.active) {
+        ImGui::TextWrapped("The animator freezes Link in his standing pose so you can pose and animate him "
+                           "limb by limb. His movement and the game's own animation stop while it is on.");
+        ImGui::BeginDisabled(player == nullptr);
+        if (ImGui::Button("Start animator", ImVec2(-1, 0))) {
+            sState.active = true;
+            sState.haveBase = false;
+            sState.captureDelay = 12;
+        }
+        ImGui::EndDisabled();
+        if (player == nullptr) {
+            ImGui::TextDisabled("Waiting for the game to start...");
+        }
+        return;
+    }
+
+    if (ImGui::Button("Stop animator (back to the game)")) {
+        sState.active = false;
+        sState.playing = false;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Recapture standing pose")) {
+        sState.haveBase = false;
+        sState.captureDelay = 0;
+        sState.active = true;
+    }
+    if (!sState.haveBase) {
+        ImGui::TextDisabled("Settling Link into his standing pose...");
+        return;
+    }
     ImGui::Separator();
+
+    DrawTransportControls();
+    ImGui::Separator();
+
+    const bool onKey = KeyIndexAt(CurrentFrame()) >= 0;
 
     // ---- Limb list + editor ----
     ImGui::BeginChild("limbs", ImVec2(170, 250), true);
@@ -546,81 +764,7 @@ void DrawPoseTab() {
 
     ImGui::Separator();
 
-    // ---- Poses ----
-    static char sPoseName[64] = "";
-    static std::vector<std::string> sPoses = ListJson(DataDir("poses"));
-    ImGui::SetNextItemWidth(160.0f);
-    ImGui::InputText("##posename", sPoseName, sizeof(sPoseName));
-    ImGui::SameLine();
-    if (ImGui::Button("Save pose")) {
-        const std::string name = SanitizeName(sPoseName);
-        if (name.empty()) {
-            sStatus = "Type a pose name first.";
-        } else if (SavePose(name, PoseAt(sState.time))) {
-            sStatus = "Saved pose \"" + name + "\".";
-            sPoses = ListJson(DataDir("poses"));
-        } else {
-            sStatus = "Could not write the pose file.";
-        }
-    }
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("##loadpose", "Load pose here...")) {
-        for (const std::string& name : sPoses) {
-            if (ImGui::Selectable(name.c_str())) {
-                Pose loaded = PoseAt(sState.time);
-                Pose fromFile;
-                if (LoadPose(name, fromFile)) {
-                    for (int i = 0; i < kLimbCount; i++) {
-                        if (fromFile.enabled[i]) {
-                            for (int axis = 0; axis < 3; axis++) {
-                                loaded.rot[i][axis] = fromFile.rot[i][axis];
-                            }
-                        }
-                    }
-                    UpsertKey(loaded);
-                    sStatus = "Loaded pose \"" + name + "\" at frame " + std::to_string(CurrentFrame()) + ".";
-                } else {
-                    sStatus = "Could not read \"" + name + "\".";
-                }
-            }
-        }
-        ImGui::EndCombo();
-    }
-
-    // ---- Animations ----
-    static char sAnimName[64] = "";
-    static std::vector<std::string> sAnims = ListJson(DataDir("animations"));
-    ImGui::SetNextItemWidth(160.0f);
-    ImGui::InputText("##animname", sAnimName, sizeof(sAnimName));
-    ImGui::SameLine();
-    if (ImGui::Button("Save animation")) {
-        const std::string name = SanitizeName(sAnimName);
-        if (name.empty()) {
-            sStatus = "Type an animation name first.";
-        } else if (sState.keys.empty()) {
-            sStatus = "There are no keyframes to save.";
-        } else if (SaveAnimation(name)) {
-            sStatus = "Saved animation \"" + name + "\".";
-            sAnims = ListJson(DataDir("animations"));
-        } else {
-            sStatus = "Could not write the animation file.";
-        }
-    }
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("##loadanim", "Load animation...")) {
-        for (const std::string& name : sAnims) {
-            if (ImGui::Selectable(name.c_str())) {
-                sStatus = LoadAnimation(name) ? "Loaded animation \"" + name + "\"." : "Could not read \"" + name + "\".";
-            }
-        }
-        ImGui::EndCombo();
-    }
-
-    if (!sStatus.empty()) {
-        ImGui::TextWrapped("%s", sStatus.c_str());
-    }
+    DrawFileControls();
 }
 
 } // namespace OcarinaStudio
