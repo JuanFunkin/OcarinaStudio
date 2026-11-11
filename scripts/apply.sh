@@ -24,8 +24,8 @@ fi
 echo "==> Applying engine patches"
 for patch in "$HERE"/patches/*.patch; do
     echo "    $(basename "$patch")"
-    git -C "$UP" apply --check "$patch"
-    git -C "$UP" apply "$patch"
+    git -C "$UP" apply --ignore-whitespace --check "$patch"
+    git -C "$UP" apply --ignore-whitespace "$patch"
 done
 
 echo "==> Copying the OcarinaStudio module"

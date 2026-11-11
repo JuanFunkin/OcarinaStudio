@@ -181,6 +181,10 @@ jobs:
     needs: generate-soh-otr
     runs-on: windows-latest
     steps:
+    - name: Keep LF line endings (the patch is written with LF)
+      run: |
+        git config --global core.autocrlf false
+        git config --global core.eol lf
     - name: Install dependencies
       run: |
         choco install ninja -y
