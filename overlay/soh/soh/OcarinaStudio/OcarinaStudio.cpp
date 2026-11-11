@@ -144,7 +144,10 @@ void OnGameTick() {
 
 static void RegisterOcarinaStudioHooks() {
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnGameFrameUpdate>([]() { OnGameTick(); });
-    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t) { OnSceneInit(); });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t) {
+        OnSceneInit();
+        PoseOnSceneInit();
+    });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayerUpdate>([]() {
         ApplyEyeOverride();
         ApplyPose();

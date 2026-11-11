@@ -66,6 +66,7 @@ void ApplyPose();
 void MountEnabledModels();
 void ReapplyEyeAssignments();
 void OnSceneInit();
+void PoseOnSceneInit();
 
 // Scenes
 bool WarpToEntrance(int entranceIndex);

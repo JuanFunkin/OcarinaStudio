@@ -18,7 +18,7 @@ Tool sTools[] = {
     { "Link colors", OcarinaStudio::DrawLinkTab, false, ImVec2(420, 460) },
     { "Eyes", OcarinaStudio::DrawEyesTab, false, ImVec2(440, 480) },
     { "Models", OcarinaStudio::DrawModelsTab, false, ImVec2(420, 360) },
-    { "Pose and animation", OcarinaStudio::DrawPoseTab, false, ImVec2(480, 700) },
+    { "Animator", OcarinaStudio::DrawPoseTab, false, ImVec2(520, 640) },
     { "Warp to entrance", OcarinaStudio::DrawScenesTab, false, ImVec2(380, 320) },
 };
 
@@ -61,7 +61,7 @@ void OcarinaStudioWindow::Draw() {
             ImGui::MenuItem("Colors and palettes...", nullptr, &sTools[2].open);
             ImGui::MenuItem("Eyes...", nullptr, &sTools[3].open);
             ImGui::MenuItem("Models...", nullptr, &sTools[4].open);
-            ImGui::MenuItem("Pose and animation...", nullptr, &sTools[5].open);
+            ImGui::MenuItem("Animator (poses and animations)...", nullptr, &sTools[5].open);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {

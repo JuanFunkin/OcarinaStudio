@@ -19,7 +19,7 @@ OcarinaStudio skips the logos, the title screen and the file select. The game st
 | **Game** | Warp to a world (Link's House, Kokiri Forest, Hyrule Field, Temple of Time...), reload the current world, or warp to any entrance index. |
 | **Stage** | Toggle the green screen, the HUD and message boxes. Pick any background color. |
 | **Camera** | **Game / Frozen / Free camera.** The free camera is OcarinaStudio's own, so nothing covers the shot. Adjustable speed, look sensitivity, roll and field of view. |
-| **Link** | Change the colors of Link's tunics, hair, linen and boots and **save / load palettes**. **Eyes:** force an expression or use **custom eyes** from PNG files in a folder. **Models:** enable `.o2r` model packs. **Pose and animation:** pose Link limb by limb, save poses, and build **keyframe animations** (linear or smooth easing, looping, speed). |
+| **Link** | Change the colors of Link's tunics, hair, linen and boots and **save / load palettes**. **Eyes:** force an expression or use **custom eyes** from PNG files in a folder. **Models:** enable `.o2r` model packs. **Animator:** freezes Link in a still standing pose (no game animation, no head-drags-torso), then pose him limb by limb on a timeline with auto keyframes, scrubbing, linear or smooth easing, looping and speed. Save and load poses and animations. |
 
 ### Free camera controls
 
@@ -47,7 +47,7 @@ OcarinaStudio keeps everything in an `OcarinaStudio` folder next to Ship of Hark
 
 - **Windows and Linux only.** There is no macOS build yet.
 - The free camera replaces the game camera's *output*; the game camera keeps running underneath, so cutscenes and targeting still behave normally.
-- The pose editor takes over limbs on top of the game's animation. *Lock Link in place* disables his controller input while a pose or animation is active. Animations support linear or smooth easing.
+- While the Animator is on, Link's controller input is disabled and the game's own animation is replaced by a frozen standing pose.
 - Switching model packs reloads the current scene so Link is rebuilt with the new model.
 
 ---
