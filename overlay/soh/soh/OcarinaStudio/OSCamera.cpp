@@ -147,6 +147,8 @@ static float sMarginRight = 0.0f;  // fraction of the screen width covered on th
 static float sMarginBottom = 0.0f; // fraction of the screen height covered at the bottom
 static float sAspect = 1.7778f;
 
+static bool sAimPending = false;
+
 namespace OcarinaStudio {
 void SetViewMargins(float right, float bottom, float aspect) {
     sMarginRight = right;
@@ -165,6 +167,19 @@ extern "C" void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, f
 
     if (!sCam.captured) {
         Capture(eye, at, *fovy);
+    }
+
+    if (sAimPending && play != nullptr) {
+        sAimPending = false;
+        const Player* link = GET_PLAYER(play);
+        const float yaw = link->actor.shape.rot.y * (3.14159265f / 32768.0f);
+        sCam.pos[0] = link->actor.world.pos.x + sinf(yaw) * 170.0f;
+        sCam.pos[1] = link->actor.world.pos.y + 58.0f;
+        sCam.pos[2] = link->actor.world.pos.z + cosf(yaw) * 170.0f;
+        sCam.yaw = yaw + 3.14159265f; // looking back at Link
+        sCam.pitch = -0.08f;
+        sCam.fov = 45.0f;
+        CVarSetFloat(OcarinaStudio::Cvar::CameraFov, 45.0f);
     }
 
     if (mode == 2) {
@@ -220,6 +235,10 @@ extern "C" void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, f
 }
 
 namespace OcarinaStudio {
+
+void AimCameraAtLink() {
+    sAimPending = true;
+}
 
 void RecaptureCamera() {
     sCam.captured = false;

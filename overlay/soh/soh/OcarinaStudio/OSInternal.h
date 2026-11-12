@@ -76,6 +76,7 @@ inline constexpr int kStageEntrance = 0x0BB; // Link's House: the empty green sc
 
 // Camera
 void RecaptureCamera();
+void AimCameraAtLink(); // frozen camera in front of Link, looking at him
 
 // Per-tick work (called from game hooks).
 void OnGameTick();

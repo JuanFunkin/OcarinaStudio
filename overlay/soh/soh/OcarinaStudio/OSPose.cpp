@@ -379,10 +379,11 @@ void SetAnimatorActive(bool active) {
     if (active) {
         sState.haveBase = false;
         sState.captureDelay = 12;
-        // Frozen camera so Link stays framed (the panels shift the view, see SetViewMargins).
+        // Frozen camera, placed in front of Link (the panels shift the view, see SetViewMargins).
         if (CVarGetInteger(Cvar::CameraMode, 0) == 0) {
             CVarSetInteger(Cvar::CameraMode, 1);
         }
+        AimCameraAtLink();
     } else {
         SetViewMargins(0.0f, 0.0f, 1.0f);
     }
@@ -395,6 +396,9 @@ void PoseOnSceneInit() {
     sHaveSnapshot = false;
     sSnapshotTaken = false;
     sMix.baking = false;
+    if (sState.active) {
+        AimCameraAtLink();
+    }
 }
 
 // Once per game tick, at the end of Player_Update.
@@ -901,7 +905,7 @@ void DrawAnimatorLayout() {
         return;
     }
     const ImGuiIO& io = ImGui::GetIO();
-    const float menuH = ImGui::GetFrameHeight();
+    const float menuH = IsAnimatorMode() ? 0.0f : ImGui::GetFrameHeight();
     const float timelineH = std::clamp(io.DisplaySize.y * 0.30f, 210.0f, 300.0f);
     const float panelW = 390.0f;
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |

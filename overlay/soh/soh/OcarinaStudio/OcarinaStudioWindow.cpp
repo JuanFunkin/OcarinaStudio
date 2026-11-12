@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 #include <libultraship/bridge/consolevariablebridge.h>
+#include "soh/cvar_prefixes.h"
 
 namespace {
 
@@ -98,7 +99,13 @@ void OcarinaStudioWindow::Draw() {
         return;
     }
 
-    if (ImGui::BeginMainMenuBar()) {
+    // OcarinaAnimator only shows the animator: no studio menu bar and no SoH menu on top.
+    const bool animatorOnly = OcarinaStudio::IsAnimatorMode();
+    if (animatorOnly) {
+        CVarSetInteger(CVAR_WINDOW("Menu"), 0);
+    }
+
+    if (!animatorOnly && ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Menu")) {
             ImGui::TextDisabled("F10 hides / shows the whole interface");
             ImGui::Separator();
