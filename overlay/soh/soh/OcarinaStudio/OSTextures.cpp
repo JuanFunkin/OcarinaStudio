@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <memory>
@@ -15,9 +16,6 @@
 #include <imgui.h>
 #include <ship/Context.h>
 #include <stb_image.h>
-#define STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
 #include <zip.h>
 
 /*
@@ -92,6 +90,83 @@ void Wr32(std::vector<uint8_t>& out, uint32_t v, bool big) {
         const int shift = big ? 24 - 8 * i : 8 * i;
         out.push_back(static_cast<uint8_t>(v >> shift));
     }
+}
+
+// ---- PNG writer (stb_image_write is not available in the build, and stored deflate blocks are enough) ----
+
+uint32_t Crc32(const uint8_t* data, size_t size, uint32_t crc = 0) {
+    static uint32_t table[256];
+    static bool ready = false;
+    if (!ready) {
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) {
+                c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            }
+            table[i] = c;
+        }
+        ready = true;
+    }
+    crc = ~crc;
+    for (size_t i = 0; i < size; i++) {
+        crc = table[(crc ^ data[i]) & 255] ^ (crc >> 8);
+    }
+    return ~crc;
+}
+
+void PngChunk(std::vector<uint8_t>& out, const char* type, const std::vector<uint8_t>& data) {
+    Wr32(out, static_cast<uint32_t>(data.size()), true);
+    std::vector<uint8_t> body(type, type + 4);
+    body.insert(body.end(), data.begin(), data.end());
+    out.insert(out.end(), body.begin(), body.end());
+    Wr32(out, Crc32(body.data(), body.size()), true);
+}
+
+bool WritePng(const std::filesystem::path& path, int width, int height, const uint8_t* rgba) {
+    // Raw scanlines: filter byte 0 + RGBA row.
+    std::vector<uint8_t> raw;
+    raw.reserve(static_cast<size_t>(height) * (static_cast<size_t>(width) * 4 + 1));
+    for (int y = 0; y < height; y++) {
+        raw.push_back(0);
+        raw.insert(raw.end(), rgba + static_cast<size_t>(y) * width * 4, rgba + (static_cast<size_t>(y) + 1) * width * 4);
+    }
+    // zlib stream made of stored (uncompressed) deflate blocks.
+    std::vector<uint8_t> z = { 0x78, 0x01 };
+    size_t pos = 0;
+    uint32_t a = 1, b = 0;
+    for (uint8_t v : raw) {
+        a = (a + v) % 65521;
+        b = (b + a) % 65521;
+    }
+    do {
+        const size_t n = std::min<size_t>(65535, raw.size() - pos);
+        const bool last = pos + n >= raw.size();
+        z.push_back(last ? 1 : 0);
+        z.push_back(static_cast<uint8_t>(n & 255));
+        z.push_back(static_cast<uint8_t>(n >> 8));
+        z.push_back(static_cast<uint8_t>(~n & 255));
+        z.push_back(static_cast<uint8_t>((~n >> 8) & 255));
+        z.insert(z.end(), raw.begin() + pos, raw.begin() + pos + n);
+        pos += n;
+    } while (pos < raw.size());
+    Wr32(z, (b << 16) | a, true);
+
+    std::vector<uint8_t> png = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+    std::vector<uint8_t> ihdr;
+    Wr32(ihdr, static_cast<uint32_t>(width), true);
+    Wr32(ihdr, static_cast<uint32_t>(height), true);
+    ihdr.insert(ihdr.end(), { 8, 6, 0, 0, 0 }); // 8 bit RGBA
+    PngChunk(png, "IHDR", ihdr);
+    PngChunk(png, "IDAT", z);
+    PngChunk(png, "IEND", {});
+
+    std::FILE* file = std::fopen(path.string().c_str(), "wb");
+    if (file == nullptr) {
+        return false;
+    }
+    const bool ok = std::fwrite(png.data(), 1, png.size(), file) == png.size();
+    std::fclose(file);
+    return ok;
 }
 
 // ---- zip --------------------------------------------------------------------------------------
@@ -333,8 +408,7 @@ bool ExportOne(zip_t* archive, const std::string& name) {
     const std::filesystem::path path = ExportDir() / (name + ".png");
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    return stbi_write_png(path.string().c_str(), static_cast<int>(info.width), static_cast<int>(info.height), 4,
-                          rgba.data(), static_cast<int>(info.width) * 4) != 0;
+    return WritePng(path, static_cast<int>(info.width), static_cast<int>(info.height), rgba.data());
 }
 
 void ExportTextures(const std::vector<std::string>& names) {
