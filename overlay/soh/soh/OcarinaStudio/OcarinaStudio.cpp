@@ -172,6 +172,7 @@ void OnGameTick() {
 
 static void RegisterOcarinaStudioHooks() {
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnGameFrameUpdate>([]() { OnGameTick(); });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayDestroy>([]() { OnPlayDestroy(); });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t) {
         OnSceneInit();
         PoseOnSceneInit();

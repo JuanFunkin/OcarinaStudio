@@ -85,6 +85,7 @@ void PrePlayerDraw(void* player); // right before Link is drawn
 void MountEnabledModels();
 void ReapplyEyeAssignments();
 void OnSceneInit();
+void OnPlayDestroy(); // evicts Link's cached resources after a model pack change
 void PoseOnSceneInit();
 void StageOnSceneInit();
 void BlockStrayTransitions();

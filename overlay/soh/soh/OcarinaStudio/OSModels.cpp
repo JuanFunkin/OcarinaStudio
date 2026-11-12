@@ -76,6 +76,7 @@ std::string FullPath(const std::string& name) {
 }
 
 bool sRefreshPending = false;
+bool sReapplyEyes = false;
 
 // Makes the game forget Link's cached resources so the new archive set takes effect.
 // Only Link's objects are evicted on purpose: the game keeps raw pointers into other resources (the
@@ -134,12 +135,23 @@ namespace OcarinaStudio {
 
 // Game hook: a scene is being initialised. Finishes a pending model refresh (see RefreshResources).
 void OnSceneInit() {
+    if (!sReapplyEyes) {
+        return;
+    }
+    sReapplyEyes = false;
+    ReapplyEyeAssignments(); // the eviction also dropped any custom eye textures
+}
+
+// Play_Destroy: the old scene is going away and the new one (with the new Link) is not created yet, so this is
+// the moment to drop Link's cached resources. Doing it later (scene init) is too late, Link already exists then
+// and keeps the old model.
+void OnPlayDestroy() {
     if (!sRefreshPending) {
         return;
     }
     sRefreshPending = false;
     EvictLinkResources();
-    ReapplyEyeAssignments(); // the eviction also dropped any custom eye textures
+    sReapplyEyes = true;
 }
 
 void MountEnabledModels() {
