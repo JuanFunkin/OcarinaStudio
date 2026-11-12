@@ -56,12 +56,12 @@ void ChromaKeyMenu() {
         CVarSetInteger(OcarinaStudio::Cvar::HideMessages, msgs ? 1 : 0);
         CVarSave();
     }
-    bool lock = CVarGetInteger(OcarinaStudio::Cvar::StageLockLink, 1) != 0;
+    bool lock = CVarGetInteger(OcarinaStudio::Cvar::StageLockLink, 0) != 0;
     if (ImGui::MenuItem("Lock Link on the stage", nullptr, &lock)) {
         CVarSetInteger(OcarinaStudio::Cvar::StageLockLink, lock ? 1 : 0);
         CVarSave();
     }
-    bool mute = CVarGetInteger(OcarinaStudio::Cvar::MuteStage, 1) != 0;
+    bool mute = CVarGetInteger(OcarinaStudio::Cvar::MuteStage, 0) != 0;
     if (ImGui::MenuItem("Mute music and voices", nullptr, &mute)) {
         CVarSetInteger(OcarinaStudio::Cvar::MuteStage, mute ? 1 : 0);
         CVarSave();

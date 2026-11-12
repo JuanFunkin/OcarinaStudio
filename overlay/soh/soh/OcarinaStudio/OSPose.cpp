@@ -414,7 +414,7 @@ void ApplyPose() {
     }
 
     // On the green screen stage Link stands still (the stage has invisible walls).
-    const bool stageLock = CVarGetInteger(Cvar::StageMode, 0) != 0 && CVarGetInteger(Cvar::StageLockLink, 1) != 0;
+    const bool stageLock = CVarGetInteger(Cvar::StageMode, 0) != 0 && CVarGetInteger(Cvar::StageLockLink, 0) != 0;
     if (!sState.active) {
         SetLock(player, stageLock);
         return;

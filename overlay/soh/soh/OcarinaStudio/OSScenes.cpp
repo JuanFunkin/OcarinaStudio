@@ -9,6 +9,9 @@
 #include <vector>
 
 #include <imgui.h>
+#include "soh/Enhancements/SwitchAge.h"
+#include "soh/Enhancements/game-interactor/GameInteractor.h"
+#include "soh/ShipInit.hpp"
 #include <libultraship/bridge/consolevariablebridge.h>
 
 namespace {
@@ -49,8 +52,9 @@ void SetLinkAge(int age) {
     if (gPlayState == nullptr || gSaveContext.linkAge == age) {
         return;
     }
-    gSaveContext.linkAge = age;
-    WarpToEntrance(kStageEntrance);
+    // Same code as the "Instant age change" cheat: respawns Link in place as the other age.
+    sWarpAllowed = true;
+    SwitchAge();
 }
 
 int GetLinkAge() {
@@ -262,3 +266,18 @@ void DrawScenesTab() {
 }
 
 } // namespace OcarinaStudio
+
+// On the green screen stage Link walks through walls (the floor still holds him), so the invisible walls of
+// the room never stop him. Exits are ignored separately (BlockStrayTransitions).
+static void RegisterStageNoWalls() {
+    REGISTER_VB_SHOULD(VB_PERFORM_WALL_COLLISION_CHECK, {
+        if (CVarGetInteger(OcarinaStudio::Cvar::StageMode, 0) != 0) {
+            Actor* actor = va_arg(args, Actor*);
+            if (actor != nullptr && actor->id == ACTOR_PLAYER) {
+                *should = false;
+            }
+        }
+    });
+}
+
+static RegisterShipInitFunc sStageNoWallsInit(RegisterStageNoWalls);

@@ -141,7 +141,7 @@ void OnGameTick() {
     // No music, voices or sound effects on the stage (restored from the Settings volumes elsewhere).
     {
         static int sLastMute = -1;
-        const int mute = CVarGetInteger(Cvar::StageMode, 0) != 0 && CVarGetInteger(Cvar::MuteStage, 1) != 0;
+        const int mute = CVarGetInteger(Cvar::StageMode, 0) != 0 && CVarGetInteger(Cvar::MuteStage, 0) != 0;
         if (mute != sLastMute) {
             sLastMute = mute;
             const struct { int player; const char* cvar; } kPlayers[] = {
