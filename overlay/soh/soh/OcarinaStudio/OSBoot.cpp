@@ -48,12 +48,19 @@ void BootToStage(void* gameState) {
     // The studio always starts on the clean green screen stage. 30 FPS is the default (version 2 of the setup).
     CVarSetInteger(OcarinaStudio::Cvar::StageMode, 1);
     CVarSetInteger(OcarinaStudio::Cvar::HideHud, 1);
-    CVarSetInteger(OcarinaStudio::Cvar::HideMessages, 1);
     if (CVarGetInteger("gOcarinaStudio.SetupVersion", 0) < 2) {
         CVarSetInteger(CVAR_SETTING("InterpolationFPS"), 30);
         CVarSetInteger("gOcarinaStudio.SetupVersion", 2);
         CVarSave();
     }
+    // Hiding message boxes caused bugs: off unless the user turns it on. Child/adult items usable by both ages.
+    if (CVarGetInteger("gOcarinaStudio.SetupVersion3", 0) == 0) {
+        CVarSetInteger(OcarinaStudio::Cvar::HideMessages, 0);
+        CVarSetInteger(CVAR_CHEAT("TimelessEquipment"), 1);
+        CVarSetInteger("gOcarinaStudio.SetupVersion3", 1);
+        CVarSave();
+    }
+    CVarSetInteger(CVAR_WINDOW("Menu"), 0); // OcarinaStudio has its own menu bar
 
     // Same set-up the game's own "boot to warp point" uses (see Enhancements/Warping.cpp).
     gSaveContext.gameMode = GAMEMODE_NORMAL;

@@ -6,7 +6,7 @@
 
 namespace {
 
-enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kAnimator, kEntrance, kSettings, kToolCount };
+enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kWorlds, kEntrance, kSettings, kToolCount };
 
 struct Tool {
     const char* title;
@@ -21,7 +21,7 @@ Tool sTools[kToolCount] = {
     { "Customize Link", OcarinaStudio::DrawLinkTab, false, ImVec2(420, 460) },
     { "Custom eyes", OcarinaStudio::DrawEyesTab, false, ImVec2(440, 480) },
     { "Models", OcarinaStudio::DrawModelsTab, false, ImVec2(420, 360) },
-    { "Animator", OcarinaStudio::DrawPoseTab, false, ImVec2(520, 640) },
+    { "Game - Worlds", OcarinaStudio::DrawWorldsTab, false, ImVec2(380, 520) },
     { "Warp to entrance", OcarinaStudio::DrawScenesTab, false, ImVec2(380, 320) },
     { "Settings", OcarinaStudio::DrawSettingsTab, false, ImVec2(340, 420) },
 };
@@ -53,6 +53,16 @@ void ChromaKeyMenu() {
     bool msgs = CVarGetInteger(OcarinaStudio::Cvar::HideMessages, 0) != 0;
     if (ImGui::MenuItem("Hide message boxes", nullptr, &msgs)) {
         CVarSetInteger(OcarinaStudio::Cvar::HideMessages, msgs ? 1 : 0);
+        CVarSave();
+    }
+    bool lock = CVarGetInteger(OcarinaStudio::Cvar::StageLockLink, 1) != 0;
+    if (ImGui::MenuItem("Lock Link on the stage", nullptr, &lock)) {
+        CVarSetInteger(OcarinaStudio::Cvar::StageLockLink, lock ? 1 : 0);
+        CVarSave();
+    }
+    bool mute = CVarGetInteger(OcarinaStudio::Cvar::MuteStage, 1) != 0;
+    if (ImGui::MenuItem("Mute music and voices", nullptr, &mute)) {
+        CVarSetInteger(OcarinaStudio::Cvar::MuteStage, mute ? 1 : 0);
         CVarSave();
     }
     bool block = CVarGetInteger(OcarinaStudio::Cvar::BlockWarps, 1) != 0;
@@ -87,14 +97,13 @@ void OcarinaStudioWindow::Draw() {
         return;
     }
 
-    const bool animatorMode = OcarinaStudio::IsAnimatorMode();
-
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Menu")) {
             ImGui::TextDisabled("F10 hides / shows the whole interface");
             ImGui::Separator();
-            if (!animatorMode) {
-                ImGui::MenuItem("Animator", nullptr, &sTools[kAnimator].open);
+            bool animator = OcarinaStudio::IsAnimatorActive();
+            if (ImGui::MenuItem("Animator", nullptr, &animator)) {
+                OcarinaStudio::SetAnimatorActive(animator);
             }
             ImGui::MenuItem("Stage options", nullptr, &sTools[kStage].open);
             ImGui::MenuItem("Warp to entrance index", nullptr, &sTools[kEntrance].open);
@@ -125,8 +134,11 @@ void OcarinaStudioWindow::Draw() {
             }
             ImGui::EndMenu();
         }
-        if (!animatorMode && ImGui::BeginMenu("Game")) {
-            OcarinaStudio::DrawGameMenuItems();
+        if (ImGui::BeginMenu("Game")) {
+            ImGui::MenuItem("Worlds...", nullptr, &sTools[kWorlds].open);
+            if (ImGui::MenuItem("Reload current world")) {
+                OcarinaStudio::ReloadCurrentScene();
+            }
             ImGui::Separator();
             if (ImGui::BeginMenu("FPS")) {
                 OcarinaStudio::DrawFpsMenuItems();
@@ -141,12 +153,10 @@ void OcarinaStudioWindow::Draw() {
         ImGui::EndMainMenuBar();
     }
 
-    if (animatorMode) {
-        OcarinaStudio::DrawAnimatorLayout();
-    }
+    OcarinaStudio::DrawAnimatorLayout();
 
     for (Tool& tool : sTools) {
-        if (!tool.open || (animatorMode && &tool == &sTools[kAnimator])) {
+        if (!tool.open) {
             continue;
         }
         ImGui::SetNextWindowSize(tool.size, ImGuiCond_FirstUseEver);

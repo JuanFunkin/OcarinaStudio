@@ -64,6 +64,21 @@ int main() {
     CHECK(!PoseFromJson(nlohmann::json::parse("[1,2]"), pp));
     CHECK(PoseFromJson(PoseToJson(MakePose(5, -123)), pp) && pp.rot[5][0] == -123 && pp.enabled[5] && !pp.enabled[6]);
 
+    // per-limb tracks: limb 3 keyed at 0 and 10, limb 4 keyed only at 20
+    std::vector<Keyframe> tracks(3);
+    tracks[0].frame = 0;  tracks[0].pose = MakePose(3, 0);
+    tracks[1].frame = 10; tracks[1].pose = MakePose(3, 1000);
+    tracks[2].frame = 20; tracks[2].pose = MakePose(4, 600);
+    CHECK(Sample(tracks, 5, Easing::Linear).rot[3][0] == 500);
+    CHECK(Sample(tracks, 15, Easing::Linear).rot[3][0] == 1000); // holds after its last key
+    CHECK(Sample(tracks, 5, Easing::Linear).enabled[4] && Sample(tracks, 5, Easing::Linear).rot[4][0] == 600); // holds before its first key
+    CHECK(!Sample(tracks, 5, Easing::Linear).enabled[7]);       // never keyed
+    // legacy 21-slot pose files still load
+    nlohmann::json legacy = PoseToJson(MakePose(5, 42));
+    legacy["limbs"].erase(legacy["limbs"].size() - 1);
+    Pose old;
+    CHECK(PoseFromJson(legacy, old) && old.rot[5][0] == 42 && !old.enabled[21]);
+
     std::printf(failures ? "%d FAILED\n" : "all tests passed\n", failures);
     return failures ? 1 : 0;
 }

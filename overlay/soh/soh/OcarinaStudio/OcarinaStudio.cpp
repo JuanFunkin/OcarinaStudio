@@ -12,6 +12,7 @@
 #include <ship/window/Window.h>
 #include <ship/window/gui/Gui.h>
 
+#include "soh/OcarinaStudio/OSGame.h"
 #include "soh/ShipInit.hpp"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 
@@ -33,6 +34,10 @@ extern "C" int32_t OcarinaStudio_HideHud(void) {
 
 extern "C" int32_t OcarinaStudio_HideMessages(void) {
     return CVarGetInteger(OcarinaStudio::Cvar::HideMessages, 0);
+}
+
+extern "C" void OcarinaStudio_PrePlayerDraw(struct Player* player) {
+    OcarinaStudio::PrePlayerDraw(player);
 }
 
 extern "C" int32_t OcarinaStudio_HideWorld(void) {
@@ -131,6 +136,25 @@ void OnGameTick() {
         CVarSetInteger(CVAR_COSMETIC("AdvancedMode"), 1);
         MountEnabledModels();
         ReapplyEyeAssignments();
+    }
+
+    // No music, voices or sound effects on the stage (restored from the Settings volumes elsewhere).
+    {
+        static int sLastMute = -1;
+        const int mute = CVarGetInteger(Cvar::StageMode, 0) != 0 && CVarGetInteger(Cvar::MuteStage, 1) != 0;
+        if (mute != sLastMute) {
+            sLastMute = mute;
+            const struct { int player; const char* cvar; } kPlayers[] = {
+                { SEQ_PLAYER_BGM_MAIN, CVAR_SETTING("Volume.MainMusic") },
+                { SEQ_PLAYER_BGM_SUB, CVAR_SETTING("Volume.SubMusic") },
+                { SEQ_PLAYER_FANFARE, CVAR_SETTING("Volume.Fanfare") },
+                { SEQ_PLAYER_SFX, CVAR_SETTING("Volume.SFX") },
+            };
+            for (const auto& entry : kPlayers) {
+                const float volume = mute ? 0.0f : CVarGetFloat(entry.cvar, 1.0f);
+                Audio_SetGameVolume(entry.player, volume);
+            }
+        }
     }
 
     // F10 shows / hides the Ocarina Studio window, even while it is hidden.

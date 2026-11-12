@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 struct PlayState;
+struct Player;
 
 /* Machinima toggles. Return non-zero when the feature is active. */
 int32_t OcarinaStudio_HideHud(void);
@@ -29,6 +30,9 @@ void OcarinaStudio_GetClearColor(uint8_t* r, uint8_t* g, uint8_t* b);
  * each) and the vertical fov to freeze the camera or to drive the free camera.
  */
 void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, float* at, float* up, float* fovy);
+
+/* Called right before Link is drawn (z_player.c, Player_Draw) so the animator can pose him. */
+void OcarinaStudio_PrePlayerDraw(struct Player* player);
 
 #ifdef __cplusplus
 }

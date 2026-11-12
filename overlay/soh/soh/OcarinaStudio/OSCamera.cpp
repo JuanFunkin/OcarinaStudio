@@ -1,5 +1,6 @@
 #include "soh/OcarinaStudio/OcarinaStudio.h"
 #include "soh/OcarinaStudio/OSInternal.h"
+#include "soh/OcarinaStudio/OSGame.h"
 
 #include <algorithm>
 #include <cmath>
@@ -142,8 +143,19 @@ void UpdateFreeCamera() {
 
 } // namespace
 
+static float sMarginRight = 0.0f;  // fraction of the screen width covered on the right
+static float sMarginBottom = 0.0f; // fraction of the screen height covered at the bottom
+static float sAspect = 1.7778f;
+
+namespace OcarinaStudio {
+void SetViewMargins(float right, float bottom, float aspect) {
+    sMarginRight = right;
+    sMarginBottom = bottom;
+    sAspect = aspect;
+}
+} // namespace OcarinaStudio
+
 extern "C" void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, float* at, float* up, float* fovy) {
-    (void)play;
     const int mode = CVarGetInteger(OcarinaStudio::Cvar::CameraMode, 0);
     if (mode == 0) {
         sCam.captured = false;
@@ -185,6 +197,26 @@ extern "C" void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, f
     up[2] = trueUp[2] * c + right[2] * s;
 
     *fovy = CVarGetFloat(OcarinaStudio::Cvar::CameraFov, sCam.fov);
+
+    // Keep Link centered in the part of the screen the interface does not cover (Animator panels).
+    if (sMarginRight > 0.0f || sMarginBottom > 0.0f) {
+        float distance = 150.0f;
+        if (play != nullptr) {
+            const Player* player = GET_PLAYER(play);
+            const float dx = player->actor.world.pos.x - eye[0];
+            const float dy = player->actor.world.pos.y + 40.0f - eye[1];
+            const float dz = player->actor.world.pos.z - eye[2];
+            distance = std::max(sqrtf(dx * dx + dy * dy + dz * dz), 30.0f);
+        }
+        const float halfH = distance * tanf(*fovy * 0.01745329252f * 0.5f);
+        const float shiftX = sMarginRight * halfH * sAspect;
+        const float shiftY = sMarginBottom * halfH;
+        for (int i = 0; i < 3; i++) {
+            const float move = right[i] * shiftX - trueUp[i] * shiftY;
+            eye[i] += move;
+            at[i] += move;
+        }
+    }
 }
 
 namespace OcarinaStudio {

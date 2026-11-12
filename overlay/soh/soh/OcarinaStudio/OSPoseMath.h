@@ -6,7 +6,8 @@
  * Header-only and free of ImGui / game dependencies on purpose, so it can be unit tested on its own
  * (see tests/). The editor in OSPose.cpp is a thin UI layer on top of this.
  *
- * Link's body has 21 limbs. Slot 0 is the root *position offset*; slots 1..20 are limb rotations.
+ * Link's skeleton has 22 slots, the same as Player's jointTable: slot 0 is the root *position*, and slot N is
+ * the rotation of PLAYER_LIMB_N (slot 1 = root, 2 = waist ... 21 = torso).
  * Rotations are s16 angles (65536 == 360 degrees).
  */
 
@@ -20,7 +21,7 @@
 
 namespace OcarinaStudio::PoseMath {
 
-constexpr int kLimbCount = 21;
+constexpr int kLimbCount = 22;
 constexpr float kDegToS16 = 65536.0f / 360.0f;
 constexpr int kTicksPerSecond = 20; // the game logic runs at 20 Hz
 
@@ -104,23 +105,46 @@ inline float AnimationLength(const std::vector<Keyframe>& keys) {
     return keys.empty() ? 0.0f : static_cast<float>(keys.back().frame);
 }
 
-// The pose the animation has at `time` (in ticks). Keys must be sorted. Requires at least one key.
+// The pose the animation has at `time` (in ticks). Keys must be sorted.
+// Every limb has its own track: a key only affects the limbs it has enabled. Between two keys of a limb the
+// value is interpolated, before its first key and after its last key it holds that key's value, and a limb that
+// has no key at all stays disabled in the result (the caller decides what it shows).
 inline Pose Sample(const std::vector<Keyframe>& keys, float time, Easing easing) {
-    if (keys.size() == 1 || time <= static_cast<float>(keys.front().frame)) {
-        return keys.front().pose;
-    }
-    for (size_t i = 0; i + 1 < keys.size(); i++) {
-        const Keyframe& a = keys[i];
-        const Keyframe& b = keys[i + 1];
-        if (time < static_cast<float>(b.frame)) {
-            if (time <= static_cast<float>(a.frame)) {
-                return a.pose;
+    Pose out;
+    for (int limb = 0; limb < kLimbCount; limb++) {
+        const Keyframe* prev = nullptr;
+        const Keyframe* next = nullptr;
+        for (const Keyframe& key : keys) {
+            if (!key.pose.enabled[limb]) {
+                continue;
             }
-            const float t = (time - static_cast<float>(a.frame)) / static_cast<float>(b.frame - a.frame);
-            return Blend(a.pose, b.pose, ApplyEasing(easing, t));
+            if (static_cast<float>(key.frame) <= time) {
+                prev = &key;
+            } else {
+                next = &key;
+                break;
+            }
+        }
+        if (prev == nullptr && next == nullptr) {
+            continue;
+        }
+        out.enabled[limb] = true;
+        if (prev == nullptr || next == nullptr) {
+            const Keyframe* only = prev != nullptr ? prev : next;
+            for (int axis = 0; axis < 3; axis++) {
+                out.rot[limb][axis] = only->pose.rot[limb][axis];
+            }
+            continue;
+        }
+        const float span = static_cast<float>(next->frame - prev->frame);
+        const float t = ApplyEasing(easing, span > 0.0f ? (time - static_cast<float>(prev->frame)) / span : 1.0f);
+        for (int axis = 0; axis < 3; axis++) {
+            const int16_t a = prev->pose.rot[limb][axis];
+            const int16_t b = next->pose.rot[limb][axis];
+            out.rot[limb][axis] = limb == 0 ? LerpValue(a, b, t) : LerpAngle(a, b, t);
         }
     }
-    return keys.back().pose;
+    return out;
 }
 
 // Moves the playback time forward by `speed` ticks, looping or stopping at the end.
@@ -163,11 +187,13 @@ inline nlohmann::json PoseToJson(const Pose& pose) {
 // Returns false (and leaves `out` untouched) if the JSON is not a valid pose.
 inline bool PoseFromJson(const nlohmann::json& j, Pose& out) {
     try {
-        if (!j.is_object() || !j.contains("limbs") || !j["limbs"].is_array() || j["limbs"].size() != kLimbCount) {
+        // Files written by older versions have 21 slots; the new 22nd slot (torso) is simply not keyed.
+        if (!j.is_object() || !j.contains("limbs") || !j["limbs"].is_array() || j["limbs"].size() < 21 ||
+            j["limbs"].size() > static_cast<size_t>(kLimbCount)) {
             return false;
         }
         Pose pose;
-        for (int i = 0; i < kLimbCount; i++) {
+        for (int i = 0; i < static_cast<int>(j["limbs"].size()); i++) {
             const auto& limb = j["limbs"][i];
             if (!limb.is_object() || !limb.contains("rot") || !limb["rot"].is_array() || limb["rot"].size() != 3) {
                 return false;

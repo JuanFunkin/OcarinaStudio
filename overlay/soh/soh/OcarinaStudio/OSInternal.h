@@ -15,6 +15,8 @@ namespace Cvar {
 inline constexpr const char* HideHud = "gOcarinaStudio.HideHud";
 inline constexpr const char* HideMessages = "gOcarinaStudio.HideMessages";
 inline constexpr const char* BlockWarps = "gOcarinaStudio.BlockWarps";
+inline constexpr const char* StageLockLink = "gOcarinaStudio.StageLockLink"; // Link stands still on the stage
+inline constexpr const char* MuteStage = "gOcarinaStudio.MuteStage";         // no music / voices on the stage
 inline constexpr const char* StageMode = "gOcarinaStudio.StageMode";
 inline constexpr const char* StageR = "gOcarinaStudio.StageColor.R";
 inline constexpr const char* StageG = "gOcarinaStudio.StageColor.G";
@@ -45,24 +47,31 @@ bool SliderFloatCvar(const char* label, const char* cvar, float min, float max, 
                      const char* format = "%.2f");
 bool SliderIntCvar(const char* label, const char* cvar, int min, int max, int defaultValue);
 
-// Feature tabs (each lives in its own source file).
+// Feature windows (each lives in its own source file).
 void DrawStageTab();
 void DrawCameraTab();
 void DrawLinkTab();
 void DrawEyesTab();
 void DrawModelsTab();
-void DrawPoseTab();
-void DrawScenesTab();
+void DrawScenesTab();   // warp by entrance index
+void DrawWorldsTab();   // every world, pick one and press Warp
 void DrawSettingsTab();
 void DrawFpsMenuItems();
-void DrawAnimatorLayout();
-bool IsAnimatorMode(); // started through OcarinaAnimator (OCARINA_ANIMATOR is set)
-void DrawGameMenuItems();
-void SetLinkAge(int age); // 0 = adult, 1 = child (reloads the world)
+void DrawStageQuickItems();
+void DrawCameraQuickItems();
+
+// Animator (OSPose.cpp)
+void DrawAnimatorLayout();            // right panel + timeline + mixtape, drawn while the animator is on
+bool IsAnimatorActive();
+void SetAnimatorActive(bool active);
+bool IsAnimatorMode();                // started through OcarinaAnimator (OCARINA_ANIMATOR is set)
+void SetViewMargins(float right, float bottom, float aspect); // keeps Link out from under the panels
+
+// Worlds
+void WarpFromMenu(int entrance);      // turns the green screen off and warps
+void SetLinkAge(int age);             // 0 = adult, 1 = child (reloads the world)
 int GetLinkAge();
-inline constexpr int kStageEntrance = 0x0BB; // Link's House: the empty green screen stage   // world list for the Game menu
-void DrawStageQuickItems(); // quick toggles for the Stage menu
-void DrawCameraQuickItems();// quick toggles for the Camera menu
+inline constexpr int kStageEntrance = 0x0BB; // Link's House: the empty green screen stage
 
 // Camera
 void RecaptureCamera();
@@ -70,7 +79,8 @@ void RecaptureCamera();
 // Per-tick work (called from game hooks).
 void OnGameTick();
 void ApplyEyeOverride();
-void ApplyPose();
+void ApplyPose();            // once per tick, at the end of Player_Update
+void PrePlayerDraw(void* player); // right before Link is drawn
 void MountEnabledModels();
 void ReapplyEyeAssignments();
 void OnSceneInit();

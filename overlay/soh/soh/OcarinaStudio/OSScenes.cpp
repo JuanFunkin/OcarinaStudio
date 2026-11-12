@@ -1,22 +1,17 @@
 #include "soh/OcarinaStudio/OSInternal.h"
 #include "soh/OcarinaStudio/OSGame.h"
+#include "soh/OcarinaStudio/OSWorlds.h"
+
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <string>
+#include <vector>
 
 #include <imgui.h>
 #include <libultraship/bridge/consolevariablebridge.h>
 
 namespace {
-
-struct SceneEntry {
-    const char* name;
-    int entrance;
-};
-
-// Entrance indices taken from soh/include/tables/entrance_table.h.
-const SceneEntry kScenes[] = {
-    { "Link's House", 0x0BB },        { "Kokiri Forest", 0x0EE },   { "Hyrule Field", 0x0CD },
-    { "Temple of Time", 0x053 },      { "Chamber of the Sages", 0x06B }, { "Test Room (empty)", 0x024 },
-    { "Sasa Test", 0x018 },           { "Depth Test", 0x0B6 },      { "Cutscene Map", 0x0A0 },
-};
 
 } // namespace
 
@@ -55,7 +50,7 @@ void SetLinkAge(int age) {
         return;
     }
     gSaveContext.linkAge = age;
-    WarpToEntrance(gSaveContext.entranceIndex);
+    WarpToEntrance(kStageEntrance);
 }
 
 int GetLinkAge() {
@@ -131,27 +126,99 @@ void DrawStageTab() {
     }
 }
 
-void DrawGameMenuItems() {
+void WarpFromMenu(int entrance) {
+    // Going to a real world: the green screen stage turns off.
+    CVarSetInteger(Cvar::StageMode, 0);
+    CVarSave();
+    WarpToEntrance(entrance);
+}
+
+static bool IsAscii(const char* text) {
+    for (; *text != '\0'; text++) {
+        if (static_cast<unsigned char>(*text) > 126) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Every world of the game: pick one and press Warp, like Saturn's level select.
+void DrawWorldsTab() {
+    static char sFilter[64] = "";
+    static int sSelected = -1;
+    static bool sKeepStage = false;
+    static int sAge = -1;
+
     if (gPlayState == nullptr) {
         ImGui::TextDisabled("Starting the game...");
     }
-    ImGui::BeginDisabled(gPlayState == nullptr);
-    for (const SceneEntry& scene : kScenes) {
-        if (ImGui::MenuItem(scene.name)) {
-            // Going to a real world: the green screen stage turns off.
-            CVarSetInteger(Cvar::StageMode, 0);
-            CVarSave();
-            WarpToEntrance(scene.entrance);
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::InputTextWithHint("##worldfilter", "Search worlds...", sFilter, sizeof(sFilter));
+
+    ImGui::BeginChild("worldlist", ImVec2(0, -118.0f), true);
+    const int count = static_cast<int>(sizeof(kAllWorlds) / sizeof(kAllWorlds[0]));
+    for (int i = 0; i < count; i++) {
+        const StageWorld& world = kAllWorlds[i];
+        if (!IsAscii(world.name)) {
+            continue;
+        }
+        if (sFilter[0] != '\0') {
+            std::string a = world.name, b = sFilter;
+            std::transform(a.begin(), a.end(), a.begin(), [](unsigned char ch) { return std::tolower(ch); });
+            std::transform(b.begin(), b.end(), b.begin(), [](unsigned char ch) { return std::tolower(ch); });
+            if (a.find(b) == std::string::npos) {
+                continue;
+            }
+        }
+        ImGui::PushID(i);
+        if (ImGui::Selectable(world.name, sSelected == i, ImGuiSelectableFlags_AllowDoubleClick)) {
+            sSelected = i;
+            if (ImGui::IsMouseDoubleClicked(0) && gPlayState != nullptr) {
+                if (sAge >= 0) {
+                    gSaveContext.linkAge = sAge;
+                }
+                if (sKeepStage) {
+                    WarpToEntrance(world.entrance);
+                } else {
+                    WarpFromMenu(world.entrance);
+                }
+            }
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+
+    ImGui::TextUnformatted("Link:");
+    ImGui::SameLine();
+    ImGui::RadioButton("Keep##age", &sAge, -1);
+    ImGui::SameLine();
+    ImGui::RadioButton("Child", &sAge, 1);
+    ImGui::SameLine();
+    ImGui::RadioButton("Adult", &sAge, 0);
+    ImGui::Checkbox("Keep the green screen on", &sKeepStage);
+
+    ImGui::BeginDisabled(gPlayState == nullptr || sSelected < 0);
+    if (ImGui::Button("Warp", ImVec2(110.0f, 0.0f))) {
+        if (sAge >= 0) {
+            gSaveContext.linkAge = sAge;
+        }
+        if (sKeepStage) {
+            WarpToEntrance(kAllWorlds[sSelected].entrance);
+        } else {
+            WarpFromMenu(kAllWorlds[sSelected].entrance);
         }
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem("Empty green screen stage")) {
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(gPlayState == nullptr);
+    if (ImGui::Button("Reload world")) {
+        ReloadCurrentScene();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Green screen stage")) {
         CVarSetInteger(Cvar::StageMode, 1);
         CVarSave();
         WarpToEntrance(kStageEntrance);
-    }
-    if (ImGui::MenuItem("Reload current world")) {
-        ReloadCurrentScene();
     }
     ImGui::EndDisabled();
 }
@@ -181,13 +248,6 @@ void DrawScenesTab() {
     }
     ImGui::BeginDisabled(gPlayState == nullptr);
 
-    for (const SceneEntry& scene : kScenes) {
-        if (ImGui::Button(scene.name)) {
-            WarpToEntrance(scene.entrance);
-        }
-    }
-
-    ImGui::Separator();
     static uint32_t sManualEntrance = 0x0BB;
     ImGui::InputScalar("Entrance index (hex)", ImGuiDataType_U32, &sManualEntrance, nullptr, nullptr, "%X",
                        ImGuiInputTextFlags_CharsHexadecimal);

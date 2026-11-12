@@ -292,8 +292,8 @@ void ReapplyEyeAssignments() {
 
 // Runs every Player update: forces the chosen expression by writing the face joint.
 void ApplyEyeOverride() {
-    const int eye = CVarGetInteger(Cvar::ForceEye, -1);
-    const int mouth = CVarGetInteger(Cvar::ForceMouth, -1);
+    const int eye = CVarGetInteger(Cvar::ForceEye, 0);
+    const int mouth = CVarGetInteger(Cvar::ForceMouth, 0);
     if ((eye < 0 && mouth < 0) || gPlayState == nullptr) {
         return;
     }
@@ -313,12 +313,12 @@ void DrawEyesTab() {
     static const char* kMouthNames[] = { "Default (animation)", "Mouth 1", "Mouth 2", "Mouth 3", "Mouth 4" };
 
     ImGui::Text("Expression");
-    int eye = CVarGetInteger(Cvar::ForceEye, -1) + 1;
+    int eye = CVarGetInteger(Cvar::ForceEye, 0) + 1;
     if (ImGui::Combo("Eyes", &eye, kEyeNames, IM_ARRAYSIZE(kEyeNames))) {
         CVarSetInteger(Cvar::ForceEye, eye - 1);
         CVarSave();
     }
-    int mouth = CVarGetInteger(Cvar::ForceMouth, -1) + 1;
+    int mouth = CVarGetInteger(Cvar::ForceMouth, 0) + 1;
     if (ImGui::Combo("Mouth", &mouth, kMouthNames, IM_ARRAYSIZE(kMouthNames))) {
         CVarSetInteger(Cvar::ForceMouth, mouth - 1);
         CVarSave();
