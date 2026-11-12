@@ -26,6 +26,8 @@ The game runs at **30 FPS** by default (the logic is still 20 ticks per second; 
 
 ### OcarinaAnimator
 
+**Texture tool** (Appearance > Texture tool): open `oot.o2r` or a mod `.o2r`, filter the textures (Link, eyes, items, levels), export them to PNG, edit them, then add the edited PNGs back (same folder layout as the export, or one PNG for the selected texture) and export a mod `.o2r` with only those textures into `mods/`. If a PNG does not have the original size you get a warning: it can cause scaling and texture errors. Palette textures (CI4/CI8) are not supported yet.
+
 `OcarinaAnimator` (`OcarinaAnimator.exe` on Windows, `OcarinaAnimator.sh` on Linux) is a second launcher that sits next to OcarinaStudio. It starts the same program in **Animator mode**: a green screen with Link standing still and the Animator window ready. The layout follows Saturn Studio: numeric values for every limb on the right (three fields per limb), and a timeline across the bottom with one track per limb and a diamond on every keyframe. Link is frozen on his standing pose; dragging a value keys the current frame. Scrub by clicking the ruler, play with looping, speed and linear or smooth easing. The **Animation Mixtape** lists Link's original animations (with search): *Bake into timeline* turns one into keyframes you can edit. Save and load poses and animations.
 
 ### Free camera controls

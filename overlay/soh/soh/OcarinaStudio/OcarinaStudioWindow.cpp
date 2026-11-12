@@ -6,7 +6,7 @@
 
 namespace {
 
-enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kWorlds, kEntrance, kSettings, kToolCount };
+enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kWorlds, kEntrance, kSettings, kTextures, kToolCount };
 
 struct Tool {
     const char* title;
@@ -24,6 +24,7 @@ Tool sTools[kToolCount] = {
     { "Game - Worlds", OcarinaStudio::DrawWorldsTab, false, ImVec2(380, 520) },
     { "Warp to entrance", OcarinaStudio::DrawScenesTab, false, ImVec2(380, 320) },
     { "Settings", OcarinaStudio::DrawSettingsTab, false, ImVec2(340, 420) },
+    { "Texture tool", OcarinaStudio::DrawTexturesTab, false, ImVec2(520, 700) },
 };
 
 void ChromaKeyMenu() {
@@ -124,6 +125,7 @@ void OcarinaStudioWindow::Draw() {
             ImGui::MenuItem("Customize...", nullptr, &sTools[kLink].open);
             ImGui::MenuItem("Custom eyes...", nullptr, &sTools[kEyes].open);
             ImGui::MenuItem("Models...", nullptr, &sTools[kModels].open);
+            ImGui::MenuItem("Texture tool...", nullptr, &sTools[kTextures].open);
             ImGui::Separator();
             const int age = OcarinaStudio::GetLinkAge();
             if (ImGui::MenuItem("Child Link", nullptr, age == 1)) {

@@ -54,6 +54,7 @@ void DrawLinkTab();
 void DrawEyesTab();
 void DrawModelsTab();
 void DrawScenesTab();   // warp by entrance index
+void DrawTexturesTab(); // export textures to PNG, import edited PNGs, build a mod .o2r
 void DrawWorldsTab();   // every world, pick one and press Warp
 void DrawSettingsTab();
 void DrawFpsMenuItems();
