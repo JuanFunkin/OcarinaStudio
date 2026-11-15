@@ -75,6 +75,10 @@ jobs:
         path: studio
     - name: Apply OcarinaStudio
       run: ./studio/scripts/apply.sh .
+    - name: Android source fixes
+      run: |
+        # bionic declares __assert itself with another signature
+        sed -i 's/void __assert(/void oot_unused_assert(/' soh/include/functions.h
     - name: Install tools
       run: |
         sudo apt-get update
@@ -141,7 +145,7 @@ jobs:
         cmake -S . -B build-android -GNinja \
           -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API \
           -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_FLAGS=-D__THROW= -DCMAKE_CXX_FLAGS=-D__THROW= \
+          -DCMAKE_C_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" -DCMAKE_CXX_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
           -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
           2>&1 | tee configure.log
