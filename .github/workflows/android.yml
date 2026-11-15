@@ -48,7 +48,9 @@ jobs:
     - uses: actions/upload-artifact@v7
       with:
         name: soh.o2r
-        path: soh.o2r
+        path: |
+          soh.o2r
+          build-cmake/soh-o2r-packer
         retention-days: 3
 
   android:
@@ -79,6 +81,8 @@ jobs:
       run: |
         # bionic declares __assert itself with another signature
         sed -i 's/void __assert(/void oot_unused_assert(/' soh/include/functions.h
+        # the mixer's NEON path uses AArch64-only intrinsics (32-bit ARM falls back to the plain C path)
+        sed -i 's/defined(__ARM_NEON)/(defined(__ARM_NEON) \&\& defined(__aarch64__))/' soh/soh/mixer.c
     - name: Install tools
       run: |
         sudo apt-get update
@@ -138,7 +142,7 @@ jobs:
       uses: actions/download-artifact@v8
       with:
         name: soh.o2r
-        path: build-android/soh
+        path: dl
     - name: Configure
       run: |
         PREFIX="$PWD/deps/android-$ABI"
@@ -150,7 +154,16 @@ jobs:
           -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
           2>&1 | tee configure.log
     - name: Build
-      run: cmake --build build-android -j4 -- -k 0 2>&1 | tee build.log
+      run: |
+        # The packer that builds soh.o2r runs on the build machine: use the host one from the first job.
+        cmake --build build-android --target soh-o2r-packer
+        cp dl/build-cmake/soh-o2r-packer build-android/soh-o2r-packer
+        chmod +x build-android/soh-o2r-packer
+        touch build-android/soh-o2r-packer
+        cmake --build build-android -j4 -- -k 0 2>&1 | tee build.log
+    - name: Show link errors
+      if: failure()
+      run: cmake --build build-android --target soh -- -v 2>&1 | tail -60
     - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v7
