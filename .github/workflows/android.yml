@@ -148,19 +148,16 @@ jobs:
         PREFIX="$PWD/deps/android-$ABI"
         cmake -S . -B build-android -GNinja \
           -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API \
-          -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+          -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release -DUSE_OPENGLES=ON \
+          -DCMAKE_EXE_LINKER_FLAGS="-llog -landroid -lEGL -lGLESv3" \
           -DCMAKE_C_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" -DCMAKE_CXX_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
           -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
           2>&1 | tee configure.log
     - name: Build
       run: |
-        # The packer that builds soh.o2r runs on the build machine: use the host one from the first job.
-        cmake --build build-android --target soh-o2r-packer
-        cp dl/build-cmake/soh-o2r-packer build-android/soh-o2r-packer
-        chmod +x build-android/soh-o2r-packer
-        touch build-android/soh-o2r-packer
-        cmake --build build-android -j4 -- -k 0 2>&1 | tee build.log
+        # Only the game itself: soh.o2r comes from the first job (its packer cannot run on the build machine here).
+        cmake --build build-android --target soh -j4 -- -k 0 2>&1 | tee build.log
     - name: Show link errors
       if: failure()
       run: cmake --build build-android --target soh -- -v 2>&1 | tail -60
