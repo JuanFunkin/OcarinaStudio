@@ -58,6 +58,9 @@ jobs:
       fail-fast: false
       matrix:
         abi: ${{ fromJSON(inputs.abi == 'both' && '["arm64-v8a","armeabi-v7a"]' || format('["{0}"]', inputs.abi || 'arm64-v8a')) }}
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
     env:
       ABI: ${{ matrix.abi }}
       API: 24
@@ -95,6 +98,37 @@ jobs:
         build sdlnet https://www.libsdl.org/projects/SDL_net/release/SDL2_net-2.2.0.tar.gz SDL2_net-2.2.0 -DSDL2NET_SAMPLES=OFF
         build tinyxml2 https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz tinyxml2-10.0.0 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
         build libzip https://github.com/nih-at/libzip/releases/download/v1.10.1/libzip-1.10.1.tar.gz libzip-1.10.1 -DENABLE_COMMONCRYPTO=OFF -DENABLE_GNUTLS=OFF -DENABLE_MBEDTLS=OFF -DENABLE_OPENSSL=OFF -DENABLE_BZIP2=OFF -DENABLE_LZMA=OFF -DENABLE_ZSTD=OFF -DBUILD_TOOLS=OFF -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF -DBUILD_SHARED_LIBS=OFF
+    - name: Cross-compile audio libraries (ogg, vorbis, opus, opusfile)
+      run: |
+        PREFIX="$PWD/deps/android-$ABI"
+        TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_PREFIX_PATH=$PREFIX -DCMAKE_FIND_ROOT_PATH=$PREFIX -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+        build() {
+          local name=$1 url=$2 dir=$3; shift 3
+          curl -fsSL "$url" | tar xz -C deps
+          cmake -S "deps/$dir" -B "deps/build-$name-$ABI" -GNinja $TOOLCHAIN "$@"
+          cmake --build "deps/build-$name-$ABI"
+          cmake --install "deps/build-$name-$ABI"
+        }
+        build ogg https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.gz libogg-1.3.5 -DBUILD_SHARED_LIBS=OFF -DINSTALL_DOCS=OFF
+        build vorbis https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.gz libvorbis-1.3.7 -DBUILD_SHARED_LIBS=OFF
+        build opus https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz opus-1.5.2 -DBUILD_SHARED_LIBS=OFF -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF
+        # opusfile has no CMake in its release tarball: compile the few files it needs
+        curl -fsSL https://downloads.xiph.org/releases/opus/opusfile-0.12.tar.gz | tar xz -C deps
+        cat > deps/opusfile-0.12/CMakeLists.txt <<'CML'
+        cmake_minimum_required(VERSION 3.10)
+        project(opusfile C)
+        find_library(OGG_LIB ogg REQUIRED)
+        find_library(OPUS_LIB opus REQUIRED)
+        add_library(opusfile STATIC src/opusfile.c src/info.c src/internal.c src/stream.c)
+        target_include_directories(opusfile PRIVATE include)
+        target_compile_definitions(opusfile PRIVATE OP_DISABLE_HTTP OP_DISABLE_DOCS)
+        install(TARGETS opusfile ARCHIVE DESTINATION lib)
+        install(FILES include/opusfile.h DESTINATION include/opus)
+        CML
+        sed -i 's/^        //' deps/opusfile-0.12/CMakeLists.txt
+        cmake -S deps/opusfile-0.12 -B deps/build-opusfile-$ABI -GNinja $TOOLCHAIN
+        cmake --build deps/build-opusfile-$ABI
+        cmake --install deps/build-opusfile-$ABI
     - name: Download soh.o2r
       uses: actions/download-artifact@v8
       with:
