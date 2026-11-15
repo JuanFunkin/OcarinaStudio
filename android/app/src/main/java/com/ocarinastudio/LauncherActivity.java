@@ -21,7 +21,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * First screen: copies the files the game needs to its folder (Android/data/com.ocarinastudio/files), lets the
+ * First screen: copies the files the game needs to its folder (/storage/emulated/0/com.ocarinastudio), lets the
  * user pick the ROM with the system file picker (no storage permission needed) and then starts the game.
  */
 public class LauncherActivity extends Activity {
@@ -34,16 +34,31 @@ public class LauncherActivity extends Activity {
     private Button pickButton;
     private Button playButton;
     private ProgressBar progress;
+    private Button permissionButton;
+    private boolean prepared = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        dataDir = getExternalFilesDir(null);
-        if (dataDir == null) {
-            dataDir = getFilesDir();
-        }
+        dataDir = DataDir.dir();
         buildUi();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!DataDir.hasAccess(this)) {
+            showPermissionStep();
+            return;
+        }
+        if (prepared) {
+            return;
+        }
+        prepared = true;
+        permissionButton.setVisibility(View.GONE);
+        status.setText("Preparing...");
         new Thread(() -> {
+            dataDir.mkdirs();
             try {
                 copyBundledFiles();
             } catch (IOException e) {
@@ -80,6 +95,12 @@ public class LauncherActivity extends Activity {
         progress.setVisibility(View.GONE);
         root.addView(progress, new LinearLayout.LayoutParams(600, LinearLayout.LayoutParams.WRAP_CONTENT));
 
+        permissionButton = new Button(this);
+        permissionButton.setText("Give file access");
+        permissionButton.setVisibility(View.GONE);
+        permissionButton.setOnClickListener(v -> DataDir.requestAccess(this, 2));
+        root.addView(permissionButton);
+
         pickButton = new Button(this);
         pickButton.setText("Select the ROM file");
         pickButton.setVisibility(View.GONE);
@@ -93,6 +114,22 @@ public class LauncherActivity extends Activity {
         root.addView(playButton);
 
         setContentView(root);
+    }
+
+    private void showPermissionStep() {
+        pickButton.setVisibility(View.GONE);
+        playButton.setVisibility(View.GONE);
+        progress.setVisibility(View.GONE);
+        permissionButton.setVisibility(View.VISIBLE);
+        status.setText("OcarinaStudio keeps its files (ROM, settings, mods, textures, animations) in the folder\n"
+                + "/storage/emulated/0/com.ocarinastudio\n"
+                + "so you can reach it from any file manager. Tap the button and allow access to all files.");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // onResume runs right after and checks the permission again
     }
 
     private boolean hasGameData() {
@@ -128,7 +165,7 @@ public class LauncherActivity extends Activity {
             pickButton.setText("Select a different ROM");
         } else {
             status.setText("Select your Ocarina of Time ROM (.z64 / .n64 / .v64).\n"
-                    + "It is copied to Android/data/com.ocarinastudio/files and never leaves your phone.");
+                    + "It is copied to /storage/emulated/0/com.ocarinastudio and never leaves your phone.");
         }
     }
 
