@@ -24,7 +24,7 @@
 
 namespace {
 
-enum Kind { kStick, kButton, kTrigger, kShoulder, kStart };
+enum Kind { kStick, kButton, kTrigger, kTriggerR, kShoulder, kStart };
 
 struct Control {
     const char* id;       // used in the saved settings
@@ -37,19 +37,19 @@ struct Control {
     ImU32 color;
 };
 
-// The default mapping of the game's controller settings: A = A, B = X, Z = left trigger, R = right shoulder,
-// C buttons = right stick, Start = start.
+// The default mapping of the game's controller settings (ControllerDefaultMappings): A = A, B = B, L = left
+// shoulder, Z = left trigger, R = right trigger, C buttons = right stick, Start = start.
 Control sControls[] = {
     { "stick", "", kStick, 0.15f, 0.70f, 0.17f, -1, 0, IM_COL32(220, 220, 230, 255) },
     { "a", "A", kButton, 0.90f, 0.76f, 0.085f, SDL_CONTROLLER_BUTTON_A, 0, IM_COL32(80, 200, 120, 255) },
-    { "b", "B", kButton, 0.80f, 0.86f, 0.07f, SDL_CONTROLLER_BUTTON_X, 0, IM_COL32(230, 90, 80, 255) },
+    { "b", "B", kButton, 0.80f, 0.86f, 0.07f, SDL_CONTROLLER_BUTTON_B, 0, IM_COL32(230, 90, 80, 255) },
     { "cup", "C^", kButton, 0.86f, 0.28f, 0.055f, -1, 1, IM_COL32(240, 200, 60, 255) },
     { "cdown", "Cv", kButton, 0.86f, 0.50f, 0.055f, -1, 2, IM_COL32(240, 200, 60, 255) },
     { "cleft", "C<", kButton, 0.78f, 0.39f, 0.055f, -1, 3, IM_COL32(240, 200, 60, 255) },
     { "cright", "C>", kButton, 0.94f, 0.39f, 0.055f, -1, 4, IM_COL32(240, 200, 60, 255) },
     { "z", "Z", kTrigger, 0.08f, 0.36f, 0.065f, -1, 0, IM_COL32(170, 170, 200, 255) },
     { "l", "L", kShoulder, 0.08f, 0.20f, 0.055f, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 0, IM_COL32(170, 170, 200, 255) },
-    { "r", "R", kShoulder, 0.92f, 0.12f, 0.06f, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 0, IM_COL32(170, 170, 200, 255) },
+    { "r", "R", kTriggerR, 0.92f, 0.12f, 0.06f, -1, 0, IM_COL32(170, 170, 200, 255) },
     { "start", "START", kStart, 0.50f, 0.92f, 0.05f, SDL_CONTROLLER_BUTTON_START, 0, IM_COL32(200, 200, 200, 255) },
 };
 constexpr int kControlCount = sizeof(sControls) / sizeof(sControls[0]);
@@ -185,6 +185,7 @@ void DrawTouchOverlay(bool hide) {
     float stickX = 0.0f, stickY = 0.0f;
     float cX = 0.0f, cY = 0.0f;
     bool triggerZ = false;
+    bool triggerR = false;
     bool buttons[SDL_CONTROLLER_BUTTON_MAX] = {};
 
     for (int i = 0; i < kControlCount; i++) {
@@ -228,6 +229,8 @@ void DrawTouchOverlay(bool hide) {
         if (pressed && c.kind != kStick) {
             if (c.kind == kTrigger) {
                 triggerZ = true;
+            } else if (c.kind == kTriggerR) {
+                triggerR = true;
             } else if (c.axis == 1) {
                 cY = -1.0f;
             } else if (c.axis == 2) {
@@ -268,6 +271,7 @@ void DrawTouchOverlay(bool hide) {
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_RIGHTX, ToAxis(cX));
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_RIGHTY, ToAxis(cY));
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERLEFT, triggerZ ? 32767 : 0);
+        SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, triggerR ? 32767 : 0);
         for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; b++) {
             SDL_JoystickSetVirtualButton(sPad, b, buttons[b] ? 1 : 0);
         }
