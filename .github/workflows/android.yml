@@ -141,11 +141,12 @@ jobs:
         cmake -S . -B build-android -GNinja \
           -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API \
           -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_FLAGS=-D__THROW= -DCMAKE_CXX_FLAGS=-D__THROW= \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
           -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
           2>&1 | tee configure.log
     - name: Build
-      run: cmake --build build-android -j4 2>&1 | tee build.log
+      run: cmake --build build-android -j4 -- -k 0 2>&1 | tee build.log
     - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v7
