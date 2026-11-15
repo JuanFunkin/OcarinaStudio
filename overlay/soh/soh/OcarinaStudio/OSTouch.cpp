@@ -12,6 +12,7 @@
 #include <SDL2/SDL.h>
 #include <imgui.h>
 #include <libultraship/bridge/consolevariablebridge.h>
+#include "soh/cvar_prefixes.h"
 
 /*
  * On-screen controller for phones and tablets.
@@ -309,8 +310,8 @@ void DrawTouchOverlay(bool hide) {
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_LEFTY, ToAxis(stickY));
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_RIGHTX, ToAxis(cX));
         SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_RIGHTY, ToAxis(cY));
-        SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERLEFT, triggerZ ? 32767 : 0);
-        SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, triggerR ? 32767 : 0);
+        SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERLEFT, triggerZ ? 32767 : -32768);
+        SDL_JoystickSetVirtualAxis(sPad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, triggerR ? 32767 : -32768);
         for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; b++) {
             SDL_JoystickSetVirtualButton(sPad, b, buttons[b] ? 1 : 0);
         }
