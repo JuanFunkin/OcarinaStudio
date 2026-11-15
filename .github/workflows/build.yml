@@ -384,6 +384,12 @@ jobs:
         cp build-android/soh/libsoh.so out/
         cp deps/android-$ABI/lib/libSDL2.so out/
         cp $NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$TRIPLE/libc++_shared.so out/
+        # every other shared library the game needs that we built (SDL2_net, ...) must travel in the APK too
+        READELF=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+        for lib in $($READELF -d out/libsoh.so | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+          if [ -f "deps/android-$ABI/lib/$lib" ] && [ ! -f "out/$lib" ]; then cp "deps/android-$ABI/lib/$lib" out/; fi
+        done
+        echo "needed by libsoh.so:"; $READELF -d out/libsoh.so | grep NEEDED
         ls -l out
     - name: Upload native libraries
       uses: actions/upload-artifact@v7
