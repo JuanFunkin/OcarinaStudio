@@ -296,6 +296,9 @@ jobs:
         sed -i 's/void __assert(/void oot_unused_assert(/' soh/include/functions.h
         # the mixer's NEON path uses AArch64-only intrinsics (32-bit ARM falls back to the plain C path)
         sed -i 's/defined(__ARM_NEON)/(defined(__ARM_NEON) \&\& defined(__aarch64__))/' soh/soh/mixer.c
+        # Android runs the game from a shared library: SDL calls SDL_main (main is renamed by SDL.h)
+        sed -i 's/^add_executable(${PROJECT_NAME} ${ALL_FILES})/add_library(${PROJECT_NAME} SHARED ${ALL_FILES})/' soh/CMakeLists.txt
+        sed -i '1i #ifdef __ANDROID__\n#include <SDL.h>\n#endif' soh/src/code/main.c
     - name: Install tools
       run: |
         sudo apt-get update
@@ -362,7 +365,7 @@ jobs:
         cmake -S . -B build-android -GNinja \
           -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API \
           -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release -DUSE_OPENGLES=ON \
-          -DCMAKE_EXE_LINKER_FLAGS="-llog -landroid -lEGL -lGLESv3" \
+          -DCMAKE_EXE_LINKER_FLAGS="-llog -landroid -lEGL -lGLESv3" -DCMAKE_SHARED_LINKER_FLAGS="-llog -landroid -lEGL -lGLESv3" \
           -DCMAKE_C_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" -DCMAKE_CXX_FLAGS="-D__THROW= -U_FORTIFY_SOURCE" \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
           -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
@@ -371,6 +374,23 @@ jobs:
       run: |
         # Only the game itself: soh.o2r comes from the first job (its packer cannot run on the build machine here).
         cmake --build build-android --target soh -j4 -- -k 0 2>&1 | tee build.log
+    - name: Collect native libraries
+      run: |
+        case "$ABI" in
+          arm64-v8a) TRIPLE=aarch64-linux-android ;;
+          armeabi-v7a) TRIPLE=arm-linux-androideabi ;;
+        esac
+        mkdir -p out
+        cp build-android/soh/libsoh.so out/
+        cp deps/android-$ABI/lib/libSDL2.so out/
+        cp $NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$TRIPLE/libc++_shared.so out/
+        ls -l out
+    - name: Upload native libraries
+      uses: actions/upload-artifact@v7
+      with:
+        name: libs-${{ matrix.abi }}
+        path: out/*.so
+        retention-days: 3
     - name: Show link errors
       if: failure()
       run: cmake --build build-android --target soh -- -v 2>&1 | tail -60
@@ -383,3 +403,63 @@ jobs:
           configure.log
           build.log
         if-no-files-found: ignore
+
+  package-android:
+    if: inputs.platform == 'all' || inputs.platform == 'android' || inputs.platform == 'android-arm64' || inputs.platform == 'android-arm32'
+    needs: [generate-soh-otr, build-android]
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+    - name: Checkout Ship of Harkinian (extractor assets)
+      uses: actions/checkout@v7
+      with:
+        repository: HarbourMasters/Shipwright
+        ref: ${{ env.UPSTREAM_REF }}
+    - uses: actions/checkout@v7
+      with:
+        path: studio
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Download soh.o2r
+      uses: actions/download-artifact@v8
+      with:
+        name: soh.o2r
+        path: dl
+    - name: Download native libraries
+      uses: actions/download-artifact@v8
+      with:
+        pattern: libs-*
+        path: libs
+    - name: Assemble the app
+      run: |
+        APP=studio/android/app/src/main
+        # SDL's Java side (must match the libSDL2.so version)
+        curl -fsSL https://github.com/libsdl-org/SDL/releases/download/release-2.32.8/SDL2-2.32.8.tar.gz | tar xz
+        mkdir -p $APP/java/org/libsdl/app
+        cp SDL2-2.32.8/android-project/app/src/main/java/org/libsdl/app/*.java $APP/java/org/libsdl/app/
+        # native libraries per ABI
+        for dir in libs/libs-*; do
+          abi=${dir#libs/libs-}
+          mkdir -p $APP/jniLibs/$abi
+          cp $dir/*.so $APP/jniLibs/$abi/
+        done
+        # bundled files: soh.o2r and the extractor's assets folder
+        mkdir -p $APP/assets
+        cp dl/soh.o2r $APP/assets/soh.o2r
+        cp -r soh/assets/yml $APP/assets/extractor
+        find $APP/jniLibs -type f | sort
+    - name: Build the APK
+      working-directory: studio/android
+      run: |
+        gradle --no-daemon wrapper --gradle-version 8.9
+        ./gradlew --no-daemon assembleRelease
+    - name: Upload the APK
+      uses: actions/upload-artifact@v7
+      with:
+        name: OcarinaStudio-android
+        path: studio/android/app/build/outputs/apk/release/*.apk
+        retention-days: 14

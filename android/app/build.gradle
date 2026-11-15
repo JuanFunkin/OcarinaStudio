@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ocarinastudio'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.ocarinastudio'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
+    }
+
+    buildTypes {
+        release {
+            // Signed with the debug key so the APK installs directly.
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    // Native libraries (libsoh.so, libSDL2.so, libc++_shared.so for each ABI) are copied here by the workflow.
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+}
