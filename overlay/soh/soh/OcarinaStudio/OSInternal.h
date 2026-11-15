@@ -54,6 +54,9 @@ void DrawLinkTab();
 void DrawEyesTab();
 void DrawModelsTab();
 void DrawScenesTab();   // warp by entrance index
+void DrawTouchTab(); // touch controls settings
+void DrawTouchOverlay(bool hide); // draws the on-screen controller and feeds the virtual gamepad
+bool TouchControlsEnabled();
 void DrawTexturesTab(); // export textures to PNG, import edited PNGs, build a mod .o2r
 void DrawWorldsTab();   // every world, pick one and press Warp
 void DrawSettingsTab();

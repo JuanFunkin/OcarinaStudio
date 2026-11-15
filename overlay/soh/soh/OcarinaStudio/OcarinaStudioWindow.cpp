@@ -7,7 +7,7 @@
 
 namespace {
 
-enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kWorlds, kEntrance, kSettings, kTextures, kNpc, kToolCount };
+enum ToolId { kStage, kCamera, kLink, kEyes, kModels, kWorlds, kEntrance, kSettings, kTextures, kNpc, kTouch, kToolCount };
 
 struct Tool {
     const char* title;
@@ -27,6 +27,7 @@ Tool sTools[kToolCount] = {
     { "Settings", OcarinaStudio::DrawSettingsTab, false, ImVec2(340, 420) },
     { "Texture tool", OcarinaStudio::DrawTexturesTab, false, ImVec2(520, 700) },
     { "Play as character", OcarinaStudio::DrawNpcTab, false, ImVec2(400, 600) },
+    { "Touch controls", OcarinaStudio::DrawTouchTab, false, ImVec2(420, 420) },
 };
 
 void ChromaKeyMenu() {
@@ -100,6 +101,22 @@ void OcarinaStudioWindow::Draw() {
         return;
     }
 
+    // Phones: bigger menus (saved in "Touch controls") and the on-screen controller.
+    static bool sScaled = false;
+    if (!sScaled) {
+        sScaled = true;
+#ifdef __ANDROID__
+        const float defaultScale = 1.6f;
+#else
+        const float defaultScale = 0.0f;
+#endif
+        const float scale = CVarGetFloat("gOcarinaStudio.UiScale", defaultScale);
+        if (scale > 0.0f) {
+            ImGui::GetIO().FontGlobalScale = scale;
+        }
+    }
+    OcarinaStudio::DrawTouchOverlay(OcarinaStudio::IsAnimatorActive());
+
     // OcarinaAnimator only shows the animator: no studio menu bar and no SoH menu on top.
     const bool animatorOnly = OcarinaStudio::IsAnimatorMode();
     if (animatorOnly) {
@@ -134,6 +151,7 @@ void OcarinaStudioWindow::Draw() {
             ImGui::MenuItem("Custom eyes...", nullptr, &sTools[kEyes].open);
             ImGui::MenuItem("Models...", nullptr, &sTools[kModels].open);
             ImGui::MenuItem("Texture tool...", nullptr, &sTools[kTextures].open);
+            ImGui::MenuItem("Touch controls...", nullptr, &sTools[kTouch].open);
             ImGui::MenuItem("Play as character (NPCs, Ganon)...", nullptr, &sTools[kNpc].open);
             ImGui::Separator();
             const int age = OcarinaStudio::GetLinkAge();
