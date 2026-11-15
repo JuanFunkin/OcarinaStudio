@@ -2,12 +2,19 @@
 #include "soh/OcarinaStudio/OSGame.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <map>
+#include <memory>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
+#include <ship/Context.h>
+#include <ship/resource/ResourceManager.h>
+#include "soh/resource/type/Animation.h"
+#include "soh/resource/type/SohResourceType.h"
 
 extern "C" {
 #include "functions.h"
@@ -41,7 +48,12 @@ struct NpcState {
 
     std::vector<Npc> npcs;
     bool listLoaded = false;
-    std::vector<std::string> anims; // full paths
+    std::vector<std::string> anims; // full paths (only animations that fit this skeleton)
+    std::vector<std::string> pool;  // every animation in the game files (for the "all objects" search)
+    size_t scanPos = 0;             // how far the "all objects" search got
+    bool scanAll = false;
+    std::string objectName;         // "object_zl2"
+    int limbCount = 0;
     std::string skeletonString;  // "__OTR__..." (must outlive the SkelAnime)
     std::string animString;
     SkelAnime skelAnime{};
@@ -115,6 +127,49 @@ bool ContainsNoCase(const std::string& text, const char* filter) {
     return a.find(b) != std::string::npos;
 }
 
+// Number of joints an animation drives (its joint index table has one more entry than the skeleton has limbs),
+// or -1 when it is not a plain skeletal animation. Animations of another rig make the model explode, so only
+// the ones that fit the skeleton are offered.
+int AnimIndexCount(const std::string& path) {
+    static std::map<std::string, int> cache;
+    auto found = cache.find(path);
+    if (found != cache.end()) {
+        return found->second;
+    }
+    int result = -1;
+    auto resource = Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(path);
+    if (resource != nullptr && resource->GetInitData() != nullptr &&
+        resource->GetInitData()->Type == static_cast<uint32_t>(SOH::ResourceType::SOH_Animation)) {
+        auto animation = std::static_pointer_cast<SOH::Animation>(resource);
+        if (animation->type == SOH::AnimationType::Normal) {
+            result = static_cast<int>(animation->rotationIndices.size());
+        }
+    }
+    cache[path] = result;
+    return result;
+}
+
+bool Fits(const std::string& path) {
+    return AnimIndexCount(path) == sNpc.limbCount + 1;
+}
+
+// Animations of the same object (and its "_anime" companions such as object_zl2_anime_1) are tried first.
+bool Related(const std::string& path) {
+    const size_t slash = path.find_last_of('/');
+    if (slash == std::string::npos) {
+        return false;
+    }
+    const std::string folder = path.substr(0, slash);
+    const std::string object = folder.substr(folder.find_last_of('/') + 1);
+    return object.compare(0, sNpc.objectName.size(), sNpc.objectName) == 0;
+}
+
+void AddIfFits(const std::string& path) {
+    if (Fits(path) && std::find(sNpc.anims.begin(), sNpc.anims.end(), path) == sNpc.anims.end()) {
+        sNpc.anims.push_back(path);
+    }
+}
+
 void PlayAnimation(int index) {
     if (index < 0 || index >= static_cast<int>(sNpc.anims.size()) || !sNpc.loaded) {
         return;
@@ -138,17 +193,49 @@ void SetupSkeleton() {
                        nullptr, nullptr, nullptr, 0);
     sNpc.loaded = sNpc.skelAnime.skeleton != nullptr && sNpc.skelAnime.jointTable != nullptr;
 
-    // Animations: same folder, names ending in Anim.
+    // Animations that fit this skeleton: first the ones of the same object, then (on request) every object.
+    sNpc.limbCount = sNpc.skelAnime.limbCount;
+    sNpc.objectName = npc.folder.substr(npc.folder.find_last_of('/') + 1);
+    if (sNpc.pool.empty()) {
+        sNpc.pool = List("objects/*Anim");
+    }
     sNpc.anims.clear();
-    for (const std::string& path : List((npc.folder + "/*Anim").c_str())) {
-        if (EndsWith(path, "Anim")) {
-            sNpc.anims.push_back(path);
+    sNpc.scanPos = 0;
+    sNpc.animSelected = -1;
+    if (!sNpc.loaded) {
+        return;
+    }
+    for (const std::string& path : sNpc.pool) {
+        if (EndsWith(path, "Anim") && Related(path)) {
+            AddIfFits(path);
         }
     }
     std::sort(sNpc.anims.begin(), sNpc.anims.end());
-    sNpc.animSelected = -1;
-    if (sNpc.loaded && !sNpc.anims.empty()) {
-        PlayAnimation(0);
+    // Start with an idle-looking animation when there is one.
+    int start = 0;
+    for (int i = 0; i < static_cast<int>(sNpc.anims.size()); i++) {
+        const std::string& name = sNpc.anims[i];
+        if (ContainsNoCase(name, "wait") || ContainsNoCase(name, "stand") || ContainsNoCase(name, "idle")) {
+            start = i;
+            break;
+        }
+    }
+    if (!sNpc.anims.empty()) {
+        PlayAnimation(start);
+    }
+}
+
+// The "all objects" search runs a few hundred animations per frame so the game never stalls.
+void ScanStep() {
+    if (!sNpc.scanAll || !sNpc.loaded) {
+        return;
+    }
+    int budget = 150;
+    while (budget-- > 0 && sNpc.scanPos < sNpc.pool.size()) {
+        const std::string& path = sNpc.pool[sNpc.scanPos++];
+        if (EndsWith(path, "Anim") && !Related(path)) {
+            AddIfFits(path);
+        }
     }
 }
 
@@ -176,8 +263,8 @@ bool NpcDraw(void* playerPointer) {
     if (!sNpc.loaded) {
         SetupSkeleton();
     }
-    if (!sNpc.loaded) {
-        return false; // nothing selected yet: Link stays visible
+    if (!sNpc.loaded || sNpc.anims.empty() || sNpc.animSelected < 0) {
+        return false; // nothing selected yet, or no animation fits this model: Link stays visible
     }
     Gfx_SetupDL_25Opa(gPlayState->state.gfxCtx);
     Matrix_Push();
@@ -219,6 +306,13 @@ void DrawNpcTab() {
     }
 
     ImGui::SeparatorText("Animation");
+    if (ImGui::Checkbox("Also search every object (same skeleton size)", &sNpc.scanAll)) {
+        sNpc.scanPos = 0;
+    }
+    ScanStep();
+    if (sNpc.scanAll && sNpc.scanPos < sNpc.pool.size()) {
+        ImGui::TextDisabled("Searching... %d%%", static_cast<int>(sNpc.scanPos * 100 / sNpc.pool.size()));
+    }
     ImGui::SetNextItemWidth(-1.0f);
     ImGui::InputTextWithHint("##animfilter", "Search animations...", sNpc.animFilter, sizeof(sNpc.animFilter));
     ImGui::BeginChild("npcanims", ImVec2(0, 170.0f), true);
@@ -235,7 +329,8 @@ void DrawNpcTab() {
     }
     ImGui::EndChild();
     if (sNpc.anims.empty() && sNpc.selected >= 0) {
-        ImGui::TextDisabled("This character has no animations of its own.");
+        ImGui::TextDisabled("No animation of this object fits the model. Turn on the search above to look in every "
+                            "object; until one is found Link stays visible.");
     }
 
     ImGui::Checkbox("Pause animation", &sNpc.paused);
