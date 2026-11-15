@@ -1,0 +1,121 @@
+name: Build OcarinaStudio Android
+
+# Experimental: cross-compiles the game for Android (arm64-v8a and armeabi-v7a). Run it by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      abi:
+        description: ABI to build
+        type: choice
+        default: arm64-v8a
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+          - both
+      upstream_ref:
+        description: Ship of Harkinian commit to build on (leave empty for the tested one)
+        type: string
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UPSTREAM_REF: ${{ inputs.upstream_ref || 'd4bf6528a3bb242bc5d862e4f1ab2b6d385c157b' }}
+
+jobs:
+  generate-soh-otr:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        repository: HarbourMasters/Shipwright
+        ref: ${{ env.UPSTREAM_REF }}
+        submodules: true
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y $(cat linux-build-deps/apt.txt)
+    - name: Generate soh.o2r
+      run: |
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release -DSOH_TOOLS_ONLY=ON
+        cmake --build build-cmake --config Release --target GenerateSohOtr -j4
+    - uses: actions/upload-artifact@v7
+      with:
+        name: soh.o2r
+        path: soh.o2r
+        retention-days: 3
+
+  android:
+    needs: generate-soh-otr
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: ${{ fromJSON(inputs.abi == 'both' && '["arm64-v8a","armeabi-v7a"]' || format('["{0}"]', inputs.abi || 'arm64-v8a')) }}
+    env:
+      ABI: ${{ matrix.abi }}
+      API: 24
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        repository: HarbourMasters/Shipwright
+        ref: ${{ env.UPSTREAM_REF }}
+        submodules: true
+    - uses: actions/checkout@v7
+      with:
+        path: studio
+    - name: Apply OcarinaStudio
+      run: ./studio/scripts/apply.sh .
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+        echo "NDK=${ANDROID_NDK_LATEST_HOME}" >> "$GITHUB_ENV"
+    - name: Cross-compile dependencies (SDL2, SDL2_net, tinyxml2, libzip)
+      run: |
+        set -e
+        PREFIX="$PWD/deps/android-$ABI"
+        mkdir -p deps "$PREFIX"
+        TOOLCHAIN="-DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_PREFIX_PATH=$PREFIX -DCMAKE_FIND_ROOT_PATH=$PREFIX"
+        build() { # name url dir extra...
+          local name=$1 url=$2 dir=$3; shift 3
+          curl -fsSL "$url" | tar xz -C deps
+          cmake -S "deps/$dir" -B "deps/build-$name-$ABI" -GNinja $TOOLCHAIN "$@"
+          cmake --build "deps/build-$name-$ABI"
+          cmake --install "deps/build-$name-$ABI"
+        }
+        build sdl https://github.com/libsdl-org/SDL/releases/download/release-2.30.3/SDL2-2.30.3.tar.gz SDL2-2.30.3 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+        build sdlnet https://www.libsdl.org/projects/SDL_net/release/SDL2_net-2.2.0.tar.gz SDL2_net-2.2.0 -DSDL2NET_SAMPLES=OFF
+        build tinyxml2 https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz tinyxml2-10.0.0 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
+        build libzip https://github.com/nih-at/libzip/releases/download/v1.10.1/libzip-1.10.1.tar.gz libzip-1.10.1 -DENABLE_COMMONCRYPTO=OFF -DENABLE_GNUTLS=OFF -DENABLE_MBEDTLS=OFF -DENABLE_OPENSSL=OFF -DENABLE_BZIP2=OFF -DENABLE_LZMA=OFF -DENABLE_ZSTD=OFF -DBUILD_TOOLS=OFF -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF -DBUILD_SHARED_LIBS=OFF
+    - name: Download soh.o2r
+      uses: actions/download-artifact@v8
+      with:
+        name: soh.o2r
+        path: build-android/soh
+    - name: Configure
+      run: |
+        PREFIX="$PWD/deps/android-$ABI"
+        cmake -S . -B build-android -GNinja \
+          -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=$ABI -DANDROID_PLATFORM=android-$API \
+          -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
+          -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+          2>&1 | tee configure.log
+    - name: Build
+      run: cmake --build build-android -j4 2>&1 | tee build.log
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: android-${{ matrix.abi }}-logs
+        path: |
+          configure.log
+          build.log
+        if-no-files-found: ignore
