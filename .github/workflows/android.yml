@@ -91,7 +91,7 @@ jobs:
           cmake --build "deps/build-$name-$ABI"
           cmake --install "deps/build-$name-$ABI"
         }
-        build sdl https://github.com/libsdl-org/SDL/releases/download/release-2.30.3/SDL2-2.30.3.tar.gz SDL2-2.30.3 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+        build sdl https://github.com/libsdl-org/SDL/releases/download/release-2.32.8/SDL2-2.32.8.tar.gz SDL2-2.32.8 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
         build sdlnet https://www.libsdl.org/projects/SDL_net/release/SDL2_net-2.2.0.tar.gz SDL2_net-2.2.0 -DSDL2NET_SAMPLES=OFF
         build tinyxml2 https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz tinyxml2-10.0.0 -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF
         build libzip https://github.com/nih-at/libzip/releases/download/v1.10.1/libzip-1.10.1.tar.gz libzip-1.10.1 -DENABLE_COMMONCRYPTO=OFF -DENABLE_GNUTLS=OFF -DENABLE_MBEDTLS=OFF -DENABLE_OPENSSL=OFF -DENABLE_BZIP2=OFF -DENABLE_LZMA=OFF -DENABLE_ZSTD=OFF -DBUILD_TOOLS=OFF -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF -DBUILD_SHARED_LIBS=OFF
