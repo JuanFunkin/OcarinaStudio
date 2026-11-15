@@ -124,6 +124,7 @@ jobs:
         target_compile_definitions(opusfile PRIVATE OP_DISABLE_HTTP OP_DISABLE_DOCS)
         install(TARGETS opusfile ARCHIVE DESTINATION lib)
         install(FILES include/opusfile.h DESTINATION include/opus)
+        install(FILES include/opusfile.h DESTINATION include)
         CML
         sed -i 's/^        //' deps/opusfile-0.12/CMakeLists.txt
         cmake -S deps/opusfile-0.12 -B deps/build-opusfile-$ABI -GNinja $TOOLCHAIN
