@@ -451,7 +451,10 @@ jobs:
         mkdir -p $APP/assets
         cp dl/soh.o2r $APP/assets/soh.o2r
         cp -r soh/assets/yml $APP/assets/extractor
-        find $APP/jniLibs -type f | sort
+        # the game library carries ~380 MB of debug symbols: strip them so the APK is a sane size
+        STRIP=$ANDROID_SDK_ROOT/ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+        find $APP/jniLibs -name '*.so' -exec $STRIP --strip-unneeded {} +
+        find $APP/jniLibs -type f -exec ls -l {} +
     - name: Build the APK
       working-directory: studio/android
       run: |
