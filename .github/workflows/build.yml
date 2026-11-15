@@ -298,7 +298,10 @@ jobs:
         sed -i 's/defined(__ARM_NEON)/(defined(__ARM_NEON) \&\& defined(__aarch64__))/' soh/soh/mixer.c
         # Android runs the game from a shared library: SDL calls SDL_main (main is renamed by SDL.h)
         sed -i 's/^add_executable(${PROJECT_NAME} ${ALL_FILES})/add_library(${PROJECT_NAME} SHARED ${ALL_FILES})/' soh/CMakeLists.txt
-        sed -i '1i #ifdef __ANDROID__\n#include <SDL.h>\n#endif' soh/src/code/main.c
+        sed -i '1i #ifdef __ANDROID__\n#include <SDL.h>\n#include <unistd.h>\n#endif' soh/src/code/main.c
+        # the extractor reads ./assets and writes oot.o2r into the working directory: use the app's files folder
+        sed -i 's|^int main(int argc, char\* argv\[\]) {|&\n#ifdef __ANDROID__\n    if (SDL_AndroidGetExternalStoragePath() != NULL) { chdir(SDL_AndroidGetExternalStoragePath()); }\n#endif|' soh/src/code/main.c
+        grep -n "chdir" -B2 -A2 soh/src/code/main.c
     - name: Install tools
       run: |
         sudo apt-get update
