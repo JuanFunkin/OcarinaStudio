@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,9 @@ bool sOpen = false;     // the settings window
 bool sEdit = false;
 int sDragging = -1;
 SDL_FingerID sStickFinger = -1;
+std::set<SDL_FingerID> sSeen;    // fingers already looked at
+std::set<SDL_FingerID> sBlocked; // fingers that landed on a menu: they never press game controls
+float sScrollPrevY = -1.0f;
 bool sStickActive = false;
 
 std::string Key(const Control& c, const char* field) {
@@ -152,14 +156,46 @@ void DrawTouchOverlay(bool hide) {
     const ImVec2 screen = ImGui::GetIO().DisplaySize;
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     const float alpha = Opacity();
-    const ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ImGui::GetIO();
 
-    std::vector<ImVec2> fingers; // pixels
+    // The SoH menu is open: the on-screen controller steps aside so taps on the menu never press game buttons.
+    const bool menuOpen = CVarGetInteger(CVAR_WINDOW("Menu"), 0) != 0;
+    hide = hide || (menuOpen && !sEdit);
+
+    std::vector<ImVec2> fingers;     // pixels, fingers that may press controls
+    std::vector<ImVec2> allFingers;  // pixels, every finger
     {
         std::lock_guard<std::mutex> lock(sFingerMutex);
-        for (const auto& entry : sFingers) {
-            fingers.emplace_back(entry.second.x * screen.x, entry.second.y * screen.y);
+        // A finger that lands on a menu or window belongs to that window for as long as it stays down.
+        for (auto it = sSeen.begin(); it != sSeen.end();) {
+            it = sFingers.count(*it) != 0 ? std::next(it) : sSeen.erase(it);
         }
+        for (auto it = sBlocked.begin(); it != sBlocked.end();) {
+            it = sFingers.count(*it) != 0 ? std::next(it) : sBlocked.erase(it);
+        }
+        for (const auto& entry : sFingers) {
+            if (sSeen.insert(entry.first).second && io.WantCaptureMouse && !sEdit) {
+                sBlocked.insert(entry.first);
+            }
+            allFingers.emplace_back(entry.second.x * screen.x, entry.second.y * screen.y);
+            if (sBlocked.count(entry.first) == 0) {
+                fingers.emplace_back(entry.second.x * screen.x, entry.second.y * screen.y);
+            }
+        }
+        if (sStickActive && sBlocked.count(sStickFinger) != 0) {
+            sStickActive = false;
+        }
+    }
+
+    // Two fingers dragging over a menu scroll it (a single finger is a mouse: it presses and drags widgets).
+    if (allFingers.size() >= 2 && io.WantCaptureMouse) {
+        const float avgY = (allFingers[0].y + allFingers[1].y) * 0.5f;
+        if (sScrollPrevY >= 0.0f) {
+            io.AddMouseWheelEvent(0.0f, (avgY - sScrollPrevY) / (5.0f * ImGui::GetFontSize()));
+        }
+        sScrollPrevY = avgY;
+    } else {
+        sScrollPrevY = -1.0f;
     }
 
     // Layout editing: drag controls with the mouse / one finger (SDL turns touches into mouse events).
@@ -202,6 +238,9 @@ void DrawTouchOverlay(bool hide) {
                 }
                 if (!sStickActive) {
                     for (const auto& entry : sFingers) {
+                        if (sBlocked.count(entry.first) != 0) {
+                            continue;
+                        }
                         const ImVec2 p(entry.second.x * screen.x, entry.second.y * screen.y);
                         if (Dist(p, g.center) <= g.radius * 1.5f) {
                             sStickActive = true;

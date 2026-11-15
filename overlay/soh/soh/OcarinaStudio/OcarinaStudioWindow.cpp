@@ -106,7 +106,7 @@ void OcarinaStudioWindow::Draw() {
     if (!sScaled) {
         sScaled = true;
 #ifdef __ANDROID__
-        const float defaultScale = 1.6f;
+        const float defaultScale = 2.0f; // same as the SoH menu's own Android scale
 #else
         const float defaultScale = 0.0f;
 #endif
