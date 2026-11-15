@@ -82,7 +82,11 @@ void AimCameraAtLink(); // frozen camera in front of Link, looking at him
 void OnGameTick();
 void ApplyEyeOverride();
 void ApplyPose();            // once per tick, at the end of Player_Update
-void PrePlayerDraw(void* player); // right before Link is drawn
+bool PrePlayerDraw(void* player); // right before Link is drawn; true = Link must not be drawn
+bool NpcDraw(void* player);
+void NpcTick();
+void NpcOnSceneInit();
+void DrawNpcTab(); // play as another character of the game
 void MountEnabledModels();
 void ReapplyEyeAssignments();
 void OnSceneInit();

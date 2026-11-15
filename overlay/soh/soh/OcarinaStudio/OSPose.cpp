@@ -390,6 +390,7 @@ void SetAnimatorActive(bool active) {
 }
 
 void PoseOnSceneInit() {
+    NpcOnSceneInit();
     // A new Player object exists after a scene change: capture the standing pose again.
     sState.haveBase = false;
     sState.captureDelay = 12;
@@ -403,6 +404,7 @@ void PoseOnSceneInit() {
 
 // Once per game tick, at the end of Player_Update.
 void ApplyPose() {
+    NpcTick();
     sSnapshotTaken = false; // the next draw takes a fresh copy of the game's joints
 
     Player* player = CurrentPlayer();
@@ -459,17 +461,20 @@ void ApplyPose() {
 }
 
 // Right before Link is drawn: the game has already reloaded his animation for this tick.
-void PrePlayerDraw(void* playerPointer) {
+bool PrePlayerDraw(void* playerPointer) {
+    if (NpcDraw(playerPointer)) {
+        return true;
+    }
     Player* player = static_cast<Player*>(playerPointer);
     if (gPlayState != nullptr && player == GET_PLAYER(gPlayState)) {
         ApplyEyeOverride(); // the face is chosen from the joint table at draw time
     }
     if (!sState.active || gPlayState == nullptr || player != GET_PLAYER(gPlayState)) {
-        return;
+        return false;
     }
     Vec3s* joints = player->skelAnime.jointTable;
     if (joints == nullptr) {
-        return;
+        return false;
     }
     if (!sSnapshotTaken) {
         for (int i = 0; i < kLimbCount; i++) {
@@ -481,7 +486,7 @@ void PrePlayerDraw(void* playerPointer) {
         sHaveSnapshot = true;
     }
     if (!sState.haveBase || sMix.baking) {
-        return;
+        return false;
     }
     const Pose pose = PoseAt(sState.time);
     for (int i = 0; i < kLimbCount; i++) {
@@ -490,6 +495,7 @@ void PrePlayerDraw(void* playerPointer) {
         joints[i].z = pose.rot[i][2];
     }
     joints[1].y = 0; // already applied to the actor's facing
+    return false;
 }
 
 } // namespace OcarinaStudio

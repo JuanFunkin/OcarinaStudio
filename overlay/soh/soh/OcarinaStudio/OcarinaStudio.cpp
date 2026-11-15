@@ -36,8 +36,8 @@ extern "C" int32_t OcarinaStudio_HideMessages(void) {
     return CVarGetInteger(OcarinaStudio::Cvar::HideMessages, 0);
 }
 
-extern "C" void OcarinaStudio_PrePlayerDraw(struct Player* player) {
-    OcarinaStudio::PrePlayerDraw(player);
+extern "C" int32_t OcarinaStudio_PrePlayerDraw(struct Player* player) {
+    return OcarinaStudio::PrePlayerDraw(player) ? 1 : 0;
 }
 
 extern "C" int32_t OcarinaStudio_HideWorld(void) {

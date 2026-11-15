@@ -32,7 +32,8 @@ void OcarinaStudio_GetClearColor(uint8_t* r, uint8_t* g, uint8_t* b);
 void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, float* at, float* up, float* fovy);
 
 /* Called right before Link is drawn (z_player.c, Player_Draw) so the animator can pose him. */
-void OcarinaStudio_PrePlayerDraw(struct Player* player);
+/* Returns non-zero when Link must not be drawn (another character was drawn instead). */
+int32_t OcarinaStudio_PrePlayerDraw(struct Player* player);
 
 #ifdef __cplusplus
 }

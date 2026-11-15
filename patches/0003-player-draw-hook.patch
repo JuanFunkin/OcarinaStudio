@@ -10,11 +10,13 @@ index 09dfb52..2d835c5 100644
  
  // Some player animations are played at this reduced speed, for reasons yet unclear.
  // This is called "adjusted" for now.
-@@ -12437,6 +12438,8 @@ void Player_Draw(Actor* thisx, PlayState* play2) {
+@@ -12437,6 +12438,10 @@ void Player_Draw(Actor* thisx, PlayState* play2) {
      Vec3s rot;
      f32 scale;
  
-+    OcarinaStudio_PrePlayerDraw(this);
++    if (OcarinaStudio_PrePlayerDraw(this)) {
++        return;
++    }
 +
      if (LINK_AGE_IN_YEARS == YEARS_CHILD) {
          pos.x = 2.0f;
