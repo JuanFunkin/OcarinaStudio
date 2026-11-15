@@ -124,6 +124,10 @@ void OcarinaStudioWindow::Draw() {
     }
 
     if (!animatorOnly && ImGui::BeginMainMenuBar()) {
+        // The SoH menu (Esc on PC) has no key on a phone: open it from here.
+        if (ImGui::MenuItem("SoH menu")) {
+            CVarSetInteger(CVAR_WINDOW("Menu"), CVarGetInteger(CVAR_WINDOW("Menu"), 0) != 0 ? 0 : 1);
+        }
         if (ImGui::BeginMenu("Menu")) {
             ImGui::TextDisabled("F10 hides / shows the whole interface");
             ImGui::Separator();

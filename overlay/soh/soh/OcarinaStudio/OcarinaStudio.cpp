@@ -180,6 +180,7 @@ static void RegisterOcarinaStudioHooks() {
     });
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnPlayerUpdate>([]() {
         BlockStrayTransitions();
+        StageKeepFloor();
         ApplyEyeOverride();
         ApplyPose();
     });

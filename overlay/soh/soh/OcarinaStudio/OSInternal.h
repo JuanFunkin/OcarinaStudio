@@ -96,6 +96,7 @@ void OnSceneInit();
 void OnPlayDestroy(); // evicts Link's cached resources after a model pack change
 void PoseOnSceneInit();
 void StageOnSceneInit();
+void StageKeepFloor();
 void BlockStrayTransitions();
 
 // Scenes

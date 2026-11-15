@@ -32,8 +32,44 @@ void BlockStrayTransitions() {
     }
 }
 
+// Infinite floor for the green screen stage: the room is small, so when Link walks off its edge he keeps
+// standing at the height of the last floor he touched instead of falling forever.
+static bool sFloorKnown = false;
+static float sFloorY = 0.0f;
+
+static bool IsStageScene() {
+    return gPlayState != nullptr && CVarGetInteger(Cvar::StageMode, 0) != 0 &&
+           (gPlayState->sceneNum == SCENE_LINKS_HOUSE || gPlayState->sceneNum == SCENE_TESTROOM);
+}
+
 void StageOnSceneInit() {
     sWarpAllowed = false;
+    sFloorKnown = false;
+}
+
+void StageKeepFloor() {
+    if (!IsStageScene()) {
+        sFloorKnown = false;
+        return;
+    }
+    Player* player = GET_PLAYER(gPlayState);
+    if (player == nullptr) {
+        return;
+    }
+    Actor& actor = player->actor;
+    if ((actor.bgCheckFlags & BGCHECKFLAG_GROUND) != 0) {
+        sFloorY = actor.world.pos.y;
+        sFloorKnown = true;
+        return;
+    }
+    if (sFloorKnown && actor.world.pos.y <= sFloorY + 0.5f) {
+        // No floor under him: put him back on the virtual one and tell the player code he is standing.
+        actor.world.pos.y = sFloorY;
+        actor.prevPos.y = sFloorY;
+        actor.velocity.y = 0.0f;
+        actor.bgCheckFlags |= BGCHECKFLAG_GROUND | BGCHECKFLAG_GROUND_STRICT;
+        actor.floorHeight = sFloorY;
+    }
 }
 
 bool WarpToEntrance(int entranceIndex) {
