@@ -76,7 +76,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build
-        echo "NDK=${ANDROID_NDK_LATEST_HOME}" >> "$GITHUB_ENV"
+        ls "$ANDROID_SDK_ROOT/ndk"
+        echo "NDK=$ANDROID_SDK_ROOT/ndk/26.3.11579264" >> "$GITHUB_ENV"
     - name: Cross-compile dependencies (SDL2, SDL2_net, tinyxml2, libzip)
       run: |
         set -e
