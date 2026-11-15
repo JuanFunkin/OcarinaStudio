@@ -4,14 +4,23 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.ClipDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.File;
@@ -19,22 +28,35 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * First screen: copies the files the game needs to its folder (/storage/emulated/0/com.ocarinastudio), lets the
- * user pick the ROM with the system file picker (no storage permission needed) and then starts the game.
+ * user pick the ROM with the system file picker and then starts the game. Every long step shows a progress bar
+ * with a percentage.
  */
 public class LauncherActivity extends Activity {
     private static final int PICK_ROM = 1;
     // Bump to re-copy the bundled files after an update.
     private static final int ASSET_VERSION = 1;
 
+    private static final int BG_TOP = Color.rgb(12, 18, 30);
+    private static final int BG_BOTTOM = Color.rgb(30, 22, 52);
+    private static final int CARD = Color.argb(200, 22, 28, 44);
+    private static final int ACCENT = Color.rgb(124, 255, 155);
+    private static final int ACCENT_DARK = Color.rgb(46, 160, 92);
+    private static final int TEXT = Color.rgb(232, 236, 244);
+    private static final int TEXT_DIM = Color.rgb(150, 158, 176);
+
     private File dataDir;
     private TextView status;
+    private TextView percent;
+    private TextView hint;
     private Button pickButton;
     private Button playButton;
-    private ProgressBar progress;
     private Button permissionButton;
+    private ProgressBar progress;
     private boolean prepared = false;
 
     @Override
@@ -56,74 +78,200 @@ public class LauncherActivity extends Activity {
         }
         prepared = true;
         permissionButton.setVisibility(View.GONE);
-        status.setText("Preparing...");
+        showProgress("Preparing the game files...", 0);
         new Thread(() -> {
             dataDir.mkdirs();
             try {
                 copyBundledFiles();
             } catch (IOException e) {
-                runOnUiThread(() -> status.setText("Could not prepare the game files: " + e.getMessage()));
+                runOnUiThread(() -> {
+                    showMessage("Could not prepare the game files:\n" + e.getMessage());
+                    prepared = false;
+                });
                 return;
             }
             runOnUiThread(this::refresh);
         }).start();
     }
 
+    // ---- UI ------------------------------------------------------------------------------------
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    private static GradientDrawable rounded(int color, int radiusPx) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radiusPx);
+        return d;
+    }
+
+    private Button makeButton(String text, boolean primary) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setAllCaps(false);
+        b.setTextSize(17);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setStateListAnimator(null);
+        if (primary) {
+            GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    new int[] {ACCENT_DARK, ACCENT});
+            d.setCornerRadius(dp(28));
+            b.setBackground(d);
+            b.setTextColor(Color.rgb(8, 30, 18));
+        } else {
+            GradientDrawable d = rounded(Color.argb(40, 255, 255, 255), dp(28));
+            d.setStroke(dp(1), Color.argb(120, 255, 255, 255));
+            b.setBackground(d);
+            b.setTextColor(TEXT);
+        }
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
+        lp.topMargin = dp(12);
+        b.setLayoutParams(lp);
+        b.setVisibility(View.GONE);
+        return b;
+    }
+
     private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER);
-        root.setBackgroundColor(Color.rgb(24, 26, 32));
-        root.setPadding(48, 24, 48, 24);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {BG_TOP, BG_BOTTOM});
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackground(bg);
+        scroll.setFillViewport(true);
+
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setGravity(Gravity.CENTER);
+        outer.setPadding(dp(20), dp(16), dp(20), dp(16));
+        scroll.addView(outer, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.ic_foreground);
+        logo.setBackground(rounded(Color.rgb(27, 58, 42), dp(24)));
+        logo.setClipToOutline(true);
+        outer.addView(logo, new LinearLayout.LayoutParams(dp(72), dp(72)));
 
         TextView title = new TextView(this);
         title.setText("OcarinaStudio");
         title.setTextSize(30);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);
-        root.addView(title);
+        title.setPadding(0, dp(10), 0, 0);
+        outer.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Machinima studio for Ocarina of Time");
+        subtitle.setTextSize(14);
+        subtitle.setTextColor(ACCENT);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 0, 0, dp(16));
+        outer.addView(subtitle);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setBackground(rounded(CARD, dp(24)));
+        card.setPadding(dp(22), dp(20), dp(22), dp(22));
+        outer.addView(card, new LinearLayout.LayoutParams(dp(460), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         status = new TextView(this);
         status.setTextSize(16);
-        status.setTextColor(Color.LTGRAY);
+        status.setTextColor(TEXT);
         status.setGravity(Gravity.CENTER);
-        status.setPadding(0, 24, 0, 24);
-        status.setText("Preparing...");
-        root.addView(status);
+        status.setLineSpacing(0, 1.15f);
+        card.addView(status);
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setMax(1000);
+        GradientDrawable track = rounded(Color.argb(70, 255, 255, 255), dp(6));
+        GradientDrawable fill = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[] {ACCENT_DARK, ACCENT});
+        fill.setCornerRadius(dp(6));
+        LayerDrawable layers = new LayerDrawable(new android.graphics.drawable.Drawable[] {
+                track, new ClipDrawable(fill, Gravity.START, ClipDrawable.HORIZONTAL)});
+        layers.setId(0, android.R.id.background);
+        layers.setId(1, android.R.id.progress);
+        progress.setProgressDrawable(layers);
         progress.setVisibility(View.GONE);
-        root.addView(progress, new LinearLayout.LayoutParams(600, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams plp =
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(12));
+        plp.topMargin = dp(16);
+        card.addView(progress, plp);
 
-        permissionButton = new Button(this);
-        permissionButton.setText("Give file access");
-        permissionButton.setVisibility(View.GONE);
+        percent = new TextView(this);
+        percent.setTextSize(15);
+        percent.setTypeface(Typeface.DEFAULT_BOLD);
+        percent.setTextColor(ACCENT);
+        percent.setGravity(Gravity.CENTER);
+        percent.setPadding(0, dp(6), 0, 0);
+        percent.setVisibility(View.GONE);
+        card.addView(percent);
+
+        permissionButton = makeButton("Give file access", true);
         permissionButton.setOnClickListener(v -> DataDir.requestAccess(this, 2));
-        root.addView(permissionButton);
+        card.addView(permissionButton);
 
-        pickButton = new Button(this);
-        pickButton.setText("Select the ROM file");
-        pickButton.setVisibility(View.GONE);
-        pickButton.setOnClickListener(v -> pickRom());
-        root.addView(pickButton);
-
-        playButton = new Button(this);
-        playButton.setText("Play");
-        playButton.setVisibility(View.GONE);
+        playButton = makeButton("Play", true);
         playButton.setOnClickListener(v -> startGame());
-        root.addView(playButton);
+        card.addView(playButton);
 
-        setContentView(root);
+        pickButton = makeButton("Select the ROM file", true);
+        pickButton.setOnClickListener(v -> pickRom());
+        card.addView(pickButton);
+
+        hint = new TextView(this);
+        hint.setTextSize(12);
+        hint.setTextColor(TEXT_DIM);
+        hint.setGravity(Gravity.CENTER);
+        hint.setPadding(0, dp(14), 0, 0);
+        hint.setText("Files folder: /storage/emulated/0/com.ocarinastudio");
+        outer.addView(hint);
+
+        setContentView(scroll);
+    }
+
+    private void hideButtons() {
+        pickButton.setVisibility(View.GONE);
+        playButton.setVisibility(View.GONE);
+        permissionButton.setVisibility(View.GONE);
+    }
+
+    /** fraction < 0 shows an indeterminate bar (unknown length). */
+    private void showProgress(String text, int permille) {
+        hideButtons();
+        status.setText(text);
+        progress.setVisibility(View.VISIBLE);
+        percent.setVisibility(View.VISIBLE);
+        if (permille < 0) {
+            progress.setIndeterminate(true);
+            percent.setText("");
+        } else {
+            progress.setIndeterminate(false);
+            progress.setProgress(permille);
+            percent.setText((permille / 10) + "%");
+        }
+    }
+
+    private void showMessage(String text) {
+        progress.setVisibility(View.GONE);
+        percent.setVisibility(View.GONE);
+        status.setText(text);
     }
 
     private void showPermissionStep() {
-        pickButton.setVisibility(View.GONE);
-        playButton.setVisibility(View.GONE);
+        hideButtons();
         progress.setVisibility(View.GONE);
+        percent.setVisibility(View.GONE);
         permissionButton.setVisibility(View.VISIBLE);
-        status.setText("OcarinaStudio keeps its files (ROM, settings, mods, textures, animations) in the folder\n"
+        status.setText("OcarinaStudio keeps its files (ROM, settings, mods, textures and animations) in\n"
                 + "/storage/emulated/0/com.ocarinastudio\n"
-                + "so you can reach it from any file manager. Tap the button and allow access to all files.");
+                + "so you can reach them from any file manager.\n\n"
+                + "Tap the button and allow access to all files.");
     }
 
     @Override
@@ -131,6 +279,8 @@ public class LauncherActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         // onResume runs right after and checks the permission again
     }
+
+    // ---- flow ----------------------------------------------------------------------------------
 
     private boolean hasGameData() {
         return new File(dataDir, "oot.o2r").exists();
@@ -152,21 +302,31 @@ public class LauncherActivity extends Activity {
 
     private void refresh() {
         progress.setVisibility(View.GONE);
+        percent.setVisibility(View.GONE);
         if (hasGameData()) {
             startGame();
             return;
         }
-        playButton.setVisibility(View.GONE);
+        hideButtons();
         pickButton.setVisibility(View.VISIBLE);
         if (hasRom()) {
-            status.setText("ROM found. The first start extracts it (a few minutes), then the game opens.");
+            status.setText("ROM found.\nThe first start extracts it (a few minutes), then the game opens.");
             playButton.setText("Extract and play");
             playButton.setVisibility(View.VISIBLE);
             pickButton.setText("Select a different ROM");
+            pickButton.setBackground(secondaryBackground());
+            pickButton.setTextColor(TEXT);
         } else {
             status.setText("Select your Ocarina of Time ROM (.z64 / .n64 / .v64).\n"
-                    + "It is copied to /storage/emulated/0/com.ocarinastudio and never leaves your phone.");
+                    + "It is copied into the files folder and never leaves your phone.");
+            pickButton.setText("Select the ROM file");
         }
+    }
+
+    private GradientDrawable secondaryBackground() {
+        GradientDrawable d = rounded(Color.argb(40, 255, 255, 255), dp(28));
+        d.setStroke(dp(1), Color.argb(120, 255, 255, 255));
+        return d;
     }
 
     private void pickRom() {
@@ -176,6 +336,19 @@ public class LauncherActivity extends Activity {
         startActivityForResult(intent, PICK_ROM);
     }
 
+    private long querySize(Uri uri) {
+        try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int i = c.getColumnIndex(OpenableColumns.SIZE);
+                if (i >= 0 && !c.isNull(i)) {
+                    return c.getLong(i);
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return -1;
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -183,11 +356,8 @@ public class LauncherActivity extends Activity {
             return;
         }
         final Uri uri = data.getData();
-        pickButton.setVisibility(View.GONE);
-        playButton.setVisibility(View.GONE);
-        status.setText("Copying the ROM...");
-        progress.setVisibility(View.VISIBLE);
-        progress.setIndeterminate(true);
+        final long total = querySize(uri);
+        showProgress("Copying the ROM...", total > 0 ? 0 : -1);
         new Thread(() -> {
             try {
                 // Remove older ROMs so only the selected one is used.
@@ -202,13 +372,27 @@ public class LauncherActivity extends Activity {
                 }
                 try (InputStream in = getContentResolver().openInputStream(uri);
                      OutputStream out = new FileOutputStream(new File(dataDir, "rom.z64"))) {
-                    copy(in, out);
+                    byte[] buffer = new byte[1 << 16];
+                    long done = 0;
+                    int lastShown = -1;
+                    int n;
+                    while ((n = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, n);
+                        done += n;
+                        if (total > 0) {
+                            int p = (int) (done * 1000 / total);
+                            if (p != lastShown) {
+                                lastShown = p;
+                                final int shown = p;
+                                runOnUiThread(() -> showProgress("Copying the ROM...", shown));
+                            }
+                        }
+                    }
                 }
                 runOnUiThread(this::refresh);
             } catch (IOException e) {
                 runOnUiThread(() -> {
-                    status.setText("Could not copy the ROM: " + e.getMessage());
-                    progress.setVisibility(View.GONE);
+                    showMessage("Could not copy the ROM:\n" + e.getMessage());
                     pickButton.setVisibility(View.VISIBLE);
                 });
             }
@@ -222,40 +406,73 @@ public class LauncherActivity extends Activity {
 
     // ---- bundled files (soh.o2r and the extractor's assets folder) ------------------------------
 
+    private long copiedBytes;
+    private long totalBytes;
+    private int lastPermille = -1;
+
     private void copyBundledFiles() throws IOException {
         SharedPreferences prefs = getSharedPreferences("files", MODE_PRIVATE);
         if (prefs.getInt("assetVersion", 0) == ASSET_VERSION && new File(dataDir, "soh.o2r").exists()) {
             return;
         }
         AssetManager assets = getAssets();
-        try (InputStream in = assets.open("soh.o2r");
-             OutputStream out = new FileOutputStream(new File(dataDir, "soh.o2r"))) {
-            copy(in, out);
+
+        // Work out the total size first so the bar is real.
+        List<String> files = new ArrayList<>();
+        listAssetFiles(assets, "extractor", files);
+        totalBytes = assetSize(assets, "soh.o2r");
+        for (String f : files) {
+            totalBytes += assetSize(assets, f);
         }
-        copyAssetDir(assets, "extractor", new File(dataDir, "assets"));
+        copiedBytes = 0;
+        lastPermille = -1;
+
+        copyAssetFile(assets, "soh.o2r", new File(dataDir, "soh.o2r"));
+        for (String f : files) {
+            copyAssetFile(assets, f, new File(dataDir, "assets/" + f.substring("extractor/".length())));
+        }
         prefs.edit().putInt("assetVersion", ASSET_VERSION).apply();
     }
 
-    private void copyAssetDir(AssetManager assets, String path, File target) throws IOException {
+    private void listAssetFiles(AssetManager assets, String path, List<String> out) throws IOException {
         String[] children = assets.list(path);
         if (children == null || children.length == 0) {
-            target.getParentFile().mkdirs();
-            try (InputStream in = assets.open(path); OutputStream out = new FileOutputStream(target)) {
-                copy(in, out);
-            }
+            out.add(path);
             return;
         }
-        target.mkdirs();
         for (String child : children) {
-            copyAssetDir(assets, path + "/" + child, new File(target, child));
+            listAssetFiles(assets, path + "/" + child, out);
         }
     }
 
-    private static void copy(InputStream in, OutputStream out) throws IOException {
-        byte[] buffer = new byte[1 << 16];
-        int n;
-        while ((n = in.read(buffer)) > 0) {
-            out.write(buffer, 0, n);
+    private long assetSize(AssetManager assets, String path) {
+        try (InputStream in = assets.open(path)) {
+            return in.available();
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    private void copyAssetFile(AssetManager assets, String path, File target) throws IOException {
+        File parent = target.getParentFile();
+        if (parent != null) {
+            parent.mkdirs();
+        }
+        try (InputStream in = assets.open(path); OutputStream out = new FileOutputStream(target)) {
+            byte[] buffer = new byte[1 << 16];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+                copiedBytes += n;
+                if (totalBytes > 0) {
+                    int p = (int) Math.min(1000, copiedBytes * 1000 / totalBytes);
+                    if (p != lastPermille) {
+                        lastPermille = p;
+                        final int shown = p;
+                        runOnUiThread(() -> showProgress("Preparing the game files...", shown));
+                    }
+                }
+            }
         }
     }
 }
