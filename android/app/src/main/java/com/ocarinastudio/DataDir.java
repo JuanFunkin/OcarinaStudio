@@ -51,6 +51,11 @@ final class DataDir {
             File dir = dir();
             dir.mkdirs();
             Os.setenv("OCARINA_DATA_DIR", dir.getAbsolutePath(), true);
+            // The extractor works in std::filesystem::temp_directory_path(), which on Android points to a
+            // folder apps cannot write to. Give it one inside the game folder.
+            File tmp = new File(dir, "tmp");
+            tmp.mkdirs();
+            Os.setenv("TMPDIR", tmp.getAbsolutePath(), true);
         } catch (Exception ignored) {
         }
     }
