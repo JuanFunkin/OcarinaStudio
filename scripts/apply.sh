@@ -31,6 +31,11 @@ done
 echo "==> Copying the OcarinaStudio module"
 cp -r "$HERE/overlay/." "$UP/"
 
+if [ -d "$HERE/torch-overlay/torch" ] && [ -d "$UP/torch/src" ]; then
+    echo "==> Replacing Torch's O2R writer (more than 65535 entries, streams to disk)"
+    cp -r "$HERE/torch-overlay/torch/." "$UP/torch/"
+fi
+
 echo "==> Replacing application icons"
 cp "$HERE/assets/icons/icon.ico"      "$UP/soh/SHIPOFHARKINIAN.ico"
 cp "$HERE/assets/icons/icon-1024.png" "$UP/soh/macosx/sohIcon.png"
