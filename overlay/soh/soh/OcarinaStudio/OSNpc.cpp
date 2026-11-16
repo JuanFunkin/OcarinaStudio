@@ -14,6 +14,7 @@
 #include <ship/Context.h>
 #include <ship/resource/ResourceManager.h>
 #include "soh/resource/type/Animation.h"
+#include "soh/resource/type/Skeleton.h"
 #include "soh/resource/type/SohResourceType.h"
 
 extern "C" {
@@ -54,6 +55,8 @@ struct NpcState {
     bool scanAll = false;
     std::string objectName;         // "object_zl2"
     int limbCount = 0;
+    bool flex = true;               // flexible (skinned) skeleton, or a plain rigid one
+    bool unsupported = false;       // skeleton kind that cannot be drawn here (curve skeletons)
     std::string skeletonString;  // "__OTR__..." (must outlive the SkelAnime)
     std::string animString;
     SkelAnime skelAnime{};
@@ -150,7 +153,8 @@ int AnimIndexCount(const std::string& path) {
 }
 
 bool Fits(const std::string& path) {
-    return AnimIndexCount(path) == sNpc.limbCount + 1;
+    // skelAnime.limbCount already counts the root translation, and so does the joint index table.
+    return AnimIndexCount(path) == sNpc.limbCount;
 }
 
 // Animations of the same object (and its "_anime" companions such as object_zl2_anime_1) are tried first.
@@ -188,10 +192,32 @@ void SetupSkeleton() {
     const Npc& npc = sNpc.npcs[sNpc.selected];
     sNpc.skeletonString = "__OTR__" + npc.path;
     std::memset(&sNpc.skelAnime, 0, sizeof(sNpc.skelAnime));
-    SkelAnime_InitFlex(gPlayState, &sNpc.skelAnime, reinterpret_cast<FlexSkeletonHeader*>(
+    sNpc.unsupported = false;
+
+    // Flexible and rigid skeletons are set up and drawn differently; initialising one as the other overruns memory.
+    auto resource = Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(npc.path);
+    if (resource == nullptr || resource->GetInitData() == nullptr ||
+        resource->GetInitData()->Type != static_cast<uint32_t>(SOH::ResourceType::SOH_Skeleton)) {
+        sNpc.unsupported = true;
+        return;
+    }
+    const SOH::SkeletonType kind = std::static_pointer_cast<SOH::Skeleton>(resource)->type;
+    if (kind == SOH::SkeletonType::Curve) {
+        sNpc.unsupported = true;
+        return;
+    }
+    sNpc.flex = kind == SOH::SkeletonType::Flex;
+    if (sNpc.flex) {
+        SkelAnime_InitFlex(gPlayState, &sNpc.skelAnime, reinterpret_cast<FlexSkeletonHeader*>(
+                               const_cast<char*>(sNpc.skeletonString.c_str())),
+                           nullptr, nullptr, nullptr, 0);
+    } else {
+        SkelAnime_Init(gPlayState, &sNpc.skelAnime, reinterpret_cast<SkeletonHeader*>(
                            const_cast<char*>(sNpc.skeletonString.c_str())),
                        nullptr, nullptr, nullptr, 0);
-    sNpc.loaded = sNpc.skelAnime.skeleton != nullptr && sNpc.skelAnime.jointTable != nullptr;
+    }
+    sNpc.loaded = sNpc.skelAnime.skeleton != nullptr && sNpc.skelAnime.jointTable != nullptr &&
+                  sNpc.skelAnime.limbCount > 0 && sNpc.skelAnime.limbCount < 100; // the game's own frame buffers hold 100
 
     // Animations that fit this skeleton: first the ones of the same object, then (on request) every object.
     sNpc.limbCount = sNpc.skelAnime.limbCount;
@@ -260,7 +286,7 @@ bool NpcDraw(void* playerPointer) {
     if (!sNpc.enabled || gPlayState == nullptr || playerPointer != GET_PLAYER(gPlayState)) {
         return false;
     }
-    if (!sNpc.loaded) {
+    if (!sNpc.loaded && !sNpc.unsupported) {
         SetupSkeleton();
     }
     if (!sNpc.loaded || sNpc.anims.empty() || sNpc.animSelected < 0) {
@@ -269,8 +295,12 @@ bool NpcDraw(void* playerPointer) {
     Gfx_SetupDL_25Opa(gPlayState->state.gfxCtx);
     Matrix_Push();
     Matrix_Scale(sNpc.scale, sNpc.scale, sNpc.scale, MTXMODE_APPLY);
-    SkelAnime_DrawFlexOpa(gPlayState, sNpc.skelAnime.skeleton, sNpc.skelAnime.jointTable, sNpc.skelAnime.dListCount,
-                          nullptr, nullptr, nullptr);
+    if (sNpc.flex) {
+        SkelAnime_DrawFlexOpa(gPlayState, sNpc.skelAnime.skeleton, sNpc.skelAnime.jointTable,
+                              sNpc.skelAnime.dListCount, nullptr, nullptr, nullptr);
+    } else {
+        SkelAnime_DrawOpa(gPlayState, sNpc.skelAnime.skeleton, sNpc.skelAnime.jointTable, nullptr, nullptr, nullptr);
+    }
     Matrix_Pop();
     return true;
 }
@@ -297,6 +327,7 @@ void DrawNpcTab() {
             sNpc.selected = i;
             sNpc.enabled = true;
             sNpc.loaded = false; // set up on the next draw
+            sNpc.unsupported = false;
         }
         ImGui::PopID();
     }
@@ -305,6 +336,9 @@ void DrawNpcTab() {
         ImGui::TextDisabled("No characters found: oot.o2r is not loaded yet.");
     }
 
+    if (sNpc.unsupported) {
+        ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "This model cannot be used here (curve skeleton). Link stays visible.");
+    }
     ImGui::SeparatorText("Animation");
     if (ImGui::Checkbox("Also search every object (same skeleton size)", &sNpc.scanAll)) {
         sNpc.scanPos = 0;

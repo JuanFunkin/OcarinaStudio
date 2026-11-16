@@ -35,6 +35,9 @@ void OcarinaStudio_OverrideView(struct PlayState* play, float* eye, float* at, f
 /* Returns non-zero when Link must not be drawn (another character was drawn instead). */
 int32_t OcarinaStudio_PrePlayerDraw(struct Player* player);
 
+/* Called by padmgr.c each frame: adds the on-screen controller (Android) to the game's pad data (OSContPad*). */
+void OcarinaStudio_InjectTouchPad(void* pad);
+
 #ifdef __cplusplus
 }
 #endif

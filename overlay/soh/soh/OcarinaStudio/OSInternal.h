@@ -97,6 +97,9 @@ void OnPlayDestroy(); // evicts Link's cached resources after a model pack chang
 void PoseOnSceneInit();
 void StageOnSceneInit();
 void StageKeepFloor();
+bool SohMenuVisible();
+void SetSohMenuVisible(bool visible);
+bool TouchControlsAvailable(); // phones only
 void BlockStrayTransitions();
 
 // Scenes

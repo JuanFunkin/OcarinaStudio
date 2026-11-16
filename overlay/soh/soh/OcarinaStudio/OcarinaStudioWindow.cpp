@@ -4,6 +4,26 @@
 #include <imgui.h>
 #include <libultraship/bridge/consolevariablebridge.h>
 #include "soh/cvar_prefixes.h"
+#include <ship/Context.h>
+#include <ship/window/Window.h>
+#include <ship/window/gui/Gui.h>
+
+namespace OcarinaStudio {
+
+// The SoH menu is a GuiWindow: changing its saved flag does nothing, it has to be toggled through the window.
+bool SohMenuVisible() {
+    auto gui = Ship::Context::GetRawInstance()->GetWindow()->GetGui();
+    return gui != nullptr && gui->GetMenu() != nullptr && gui->GetMenu()->IsVisible();
+}
+
+void SetSohMenuVisible(bool visible) {
+    auto gui = Ship::Context::GetRawInstance()->GetWindow()->GetGui();
+    if (gui != nullptr && gui->GetMenu() != nullptr && gui->GetMenu()->IsVisible() != visible) {
+        gui->GetMenu()->ToggleVisibility();
+    }
+}
+
+} // namespace OcarinaStudio
 
 namespace {
 
@@ -120,13 +140,13 @@ void OcarinaStudioWindow::Draw() {
     // OcarinaAnimator only shows the animator: no studio menu bar and no SoH menu on top.
     const bool animatorOnly = OcarinaStudio::IsAnimatorMode();
     if (animatorOnly) {
-        CVarSetInteger(CVAR_WINDOW("Menu"), 0);
+        OcarinaStudio::SetSohMenuVisible(false);
     }
 
     if (!animatorOnly && ImGui::BeginMainMenuBar()) {
         // The SoH menu (Esc on PC) has no key on a phone: open it from here.
         if (ImGui::MenuItem("SoH menu")) {
-            CVarSetInteger(CVAR_WINDOW("Menu"), CVarGetInteger(CVAR_WINDOW("Menu"), 0) != 0 ? 0 : 1);
+            OcarinaStudio::SetSohMenuVisible(!OcarinaStudio::SohMenuVisible());
         }
         if (ImGui::BeginMenu("Menu")) {
             ImGui::TextDisabled("F10 hides / shows the whole interface");
@@ -155,7 +175,9 @@ void OcarinaStudioWindow::Draw() {
             ImGui::MenuItem("Custom eyes...", nullptr, &sTools[kEyes].open);
             ImGui::MenuItem("Models...", nullptr, &sTools[kModels].open);
             ImGui::MenuItem("Texture tool...", nullptr, &sTools[kTextures].open);
-            ImGui::MenuItem("Touch controls...", nullptr, &sTools[kTouch].open);
+            if (OcarinaStudio::TouchControlsAvailable()) {
+                ImGui::MenuItem("Touch controls...", nullptr, &sTools[kTouch].open);
+            }
             ImGui::MenuItem("Play as character (NPCs, Ganon)...", nullptr, &sTools[kNpc].open);
             ImGui::Separator();
             const int age = OcarinaStudio::GetLinkAge();
